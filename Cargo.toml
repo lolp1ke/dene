@@ -1,0 +1,58 @@
+[package]
+name = "dene"
+authors.workspace = true
+edition.workspace = true
+version.workspace = true
+description.workspace = true
+repository.workspace = true
+readme.workspace = true
+license-file.workspace = true
+rust-version.workspace = true
+
+[lib]
+required-features = ["default"]
+
+[features]
+default = [
+  "crossterm",
+  "derive_more",
+  "ratatui",
+  "rustc-hash",
+  "serde",
+  "toml",
+  "taffy",
+]
+
+crossterm = ["crossterm/event-stream"]
+derive_more = [
+  "derive_more/debug",
+  "derive_more/deref",
+  "derive_more/deref_mut",
+]
+ratatui = ["ratatui/crossterm"]
+rustc-hash = ["rustc-hash/std"]
+serde = ["serde/derive", "serde/std"]
+taffy = ["taffy/taffy_tree", "taffy/flexbox", "taffy/std"]
+toml = ["toml/serde", "toml/parse"]
+
+[dependencies]
+anyhow = { version = "1.0.102", default-features = false }
+async-task = { version = "4.7.1", default-features = false }
+bitflags = { version = "2.11.1", default-features = false }
+crossterm = { version = "0.29.0", default-features = false }
+derive_more = { version = "2.1.1", default-features = false }
+futures-util = { version = "0.3.32", default-features = false }
+inventory = { version = "0.3.24", default-features = false }
+parking_lot = { version = "0.12.5", default-features = false }
+ratatui = { version = "0.30.0", default-features = false }
+rustc-hash = { version = "2.1.2", default-features = false }
+serde = { version = "1.0.228", default-features = false }
+slotmap = { version = "1.1.1", default-features = false }
+smallvec = { version = "1.15.1", default-features = false }
+taffy = { version = "0.10.1", default-features = false }
+tokio = { version = "1.52.3", default-features = false }
+toml = { version = "1.1.2", default-features = false }
+tracing = { version = "0.1.44", default-features = false }
+
+[lints]
+workspace = true
