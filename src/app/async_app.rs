@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: Apache-2.0
+
 use std::{
   cell::RefCell,
   rc::{self, Rc},
@@ -64,5 +66,15 @@ impl AppContext for AsyncApp {
     let app = self.app();
     let mut app = app.borrow_mut();
     app.update_window_id(handle.window_id, f)
+  }
+
+  fn read_global<G, F, R>(&self, f: F) -> R
+  where
+    G: crate::Global,
+    F: FnOnce(&G, &App) -> R,
+  {
+    let app = self.app();
+    let app = app.borrow();
+    app.read_global(f)
   }
 }

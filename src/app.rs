@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: Apache-2.0
+
 mod async_app;
 
 use std::{
@@ -481,6 +483,15 @@ impl AppContext for App {
   {
     self.update_window_id(handle.window_id, f)
   }
+
+  fn read_global<G, F, R>(&self, f: F) -> R
+  where
+    G: Global,
+    F: FnOnce(&G, &App) -> R,
+  {
+    let global = self.global();
+    f(global, self)
+  }
 }
 impl Drop for App {
   fn drop(&mut self) {
@@ -551,6 +562,11 @@ pub trait AppContext {
   ) -> anyhow::Result<R>
   where
     F: FnOnce(AnyView, &mut Window, &mut App) -> R;
+
+  fn read_global<G, F, R>(&self, f: F) -> R
+  where
+    G: Global,
+    F: FnOnce(&G, &App) -> R;
 }
 #[derive(Debug)]
 pub(crate) enum Effect {
