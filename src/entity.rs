@@ -68,7 +68,7 @@ pub struct Slot<T>(Entity<T>);
 
 #[derive(Debug)]
 pub struct AnyEntity {
-  entity_id: EntityId,
+  pub(crate) entity_id: EntityId,
   ty_id: TypeId,
 }
 impl AnyEntity {

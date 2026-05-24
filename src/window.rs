@@ -1,14 +1,18 @@
 // SPDX-License-Identifier: Apache-2.0
 
-use std::{any::TypeId, collections::HashMap, marker::PhantomData, rc::Rc};
+use std::{
+  any::{Any, TypeId},
+  marker::PhantomData,
+  rc::Rc,
+};
 
 use ratatui::layout::Rect;
 use rustc_hash::FxHashMap;
 use slotmap::new_key_type;
 
 use crate::{
-  Action, AnyView, App, AppContext, Keystroke, LayoutEngine, PanelId,
-  PanelNode, clamp_area, draw,
+  Action, AnyView, App, AppContext, FocusNext, FocusPrev, Keystroke,
+  LayoutEngine, PanelId, PanelNode, clamp_area, draw,
 };
 
 type ActionListener = Rc<dyn Fn(&dyn Action, &mut Window, &mut App)>;
@@ -18,7 +22,7 @@ pub struct Window {
   handle: AnyWindowHandle,
 
   pub root: Option<PanelNode>,
-  pub active_pane: Option<PanelId>,
+  pub active_panel: Option<PanelId>,
   next_pane_id: u32,
   pub(crate) bounds: Rect,
 
@@ -30,14 +34,31 @@ pub struct Window {
 impl Window {
   pub(crate) fn new(handle: AnyWindowHandle, config: WindowConfig) -> Self {
     let WindowConfig { area, .. } = config;
+
+    let mut action_listeners: FxHashMap<TypeId, Vec<ActionListener>> =
+      FxHashMap::default();
+    action_listeners
+      .entry(FocusNext.type_id())
+      .or_default()
+      .push(Rc::new(move |_, window, _| {
+        window.focus(1);
+        tracing::debug!("{:?}", window.active_panel);
+      }));
+    action_listeners
+      .entry(FocusPrev.type_id())
+      .or_default()
+      .push(Rc::new(move |_, window, _| {
+        window.focus(-1);
+      }));
+
     Self {
       handle,
       root: None,
-      active_pane: Some(PanelId(0)),
+      active_panel: Some(PanelId(0)),
       next_pane_id: 1,
 
       bounds: area,
-      action_listeners: FxHashMap::default(),
+      action_listeners,
       layout_engine: LayoutEngine::default(),
     }
   }
@@ -106,7 +127,7 @@ impl Window {
     cx: &mut App,
   ) {
     if let Some(node) = self.root.as_ref()
-      && let Some(active_pane) = self.active_pane
+      && let Some(active_pane) = self.active_panel
       && let Some(pane) = node.find(active_pane)
     {
       let view = pane.view.clone();
@@ -127,6 +148,29 @@ impl Window {
         let action = action.as_any().downcast_ref().expect("wrong action");
         f(action, window, cx);
       }));
+  }
+
+  pub(crate) fn focus(&mut self, idx: i32) {
+    let Some(root) = self.root.as_ref() else {
+      return;
+    };
+    let order = root.tab_order();
+    if order.is_empty() {
+      return;
+    };
+    tracing::debug!("{:?}", order);
+    tracing::debug!("{:?}", self.active_panel);
+    tracing::debug!("idx: {}", idx);
+
+    let current_idx = self
+      .active_panel
+      .and_then(|id| order.iter().position(|p| *p == id))
+      .unwrap_or(0);
+    let focus_idx =
+      ((current_idx as i32) + idx).rem_euclid(order.len() as i32) as usize;
+    tracing::debug!("cur_idx: {}", current_idx);
+    tracing::debug!("focus_idx: {}", focus_idx);
+    self.active_panel = Some(order[focus_idx]);
   }
 }
 

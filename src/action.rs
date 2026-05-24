@@ -97,11 +97,16 @@ macro_rules! actions {
   };
 }
 
+// minimal built-in actions
 actions! {
   [
-    NoAction,
     Quit,
-  ]
+
+    FocusNext,
+    FocusPrev,
+
+    NoAction,
+    ]
 }
 
 pub struct MacroActionBuilder(pub fn() -> MacroActionData);
@@ -111,7 +116,7 @@ pub struct MacroActionData {
   pub type_id: TypeId,
   pub build: ActionBuilder,
 }
-type ActionBuilder = fn(json: toml::Value) -> anyhow::Result<Box<dyn Action>>;
+type ActionBuilder = fn(toml::Value) -> anyhow::Result<Box<dyn Action>>;
 
 #[derive(Debug)]
 struct ActionData {
@@ -160,7 +165,6 @@ impl ActionRegistry {
       .get(name)
       .map(|b| (b.build)(toml::Value::String("()".to_string())).unwrap())
       .unwrap_or(Box::new(NoAction))
-    // .unwrap()
   }
 }
 impl Default for ActionRegistry {

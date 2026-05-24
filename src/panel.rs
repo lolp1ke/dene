@@ -28,7 +28,7 @@ pub enum PanelNode {
   },
 }
 impl PanelNode {
-  pub fn visit_leaves<F>(
+  pub(crate) fn visit_leaves<F>(
     &self,
     node_id: NodeId,
     engine: &LayoutEngine,
@@ -65,7 +65,7 @@ impl PanelNode {
     };
   }
 
-  pub fn find(&self, id: PanelId) -> Option<&Panel> {
+  pub(crate) fn find(&self, id: PanelId) -> Option<&Panel> {
     match self {
       PanelNode::Leaf(pane) if pane.id == id => Some(pane),
       PanelNode::Leaf(..) => None,
@@ -73,6 +73,24 @@ impl PanelNode {
         children.iter().find_map(|child| child.find(id))
       }
     }
+  }
+
+  pub fn tab_order(&self) -> Vec<PanelId> {
+    #[inline]
+    fn inner(this: &PanelNode, order: &mut Vec<PanelId>) {
+      match this {
+        PanelNode::Leaf(panel) => order.push(panel.id),
+        PanelNode::Split { children, .. } => {
+          for child in children.iter() {
+            inner(child, order);
+          }
+        }
+      };
+    }
+
+    let mut order = Vec::new();
+    inner(self, &mut order);
+    order
   }
 }
 

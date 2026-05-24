@@ -159,7 +159,7 @@ impl App {
           id: pane_id,
           view: root_view.into(),
         }));
-        window.active_pane = Some(pane_id);
+        window.active_panel = Some(pane_id);
       };
 
       // render first frame on creation
@@ -183,7 +183,7 @@ impl App {
         let view = window
           .root
           .as_ref()?
-          .find(window.active_pane?)
+          .find(window.active_panel?)
           .map(|panel| panel.view.clone())?;
 
         let result = f(view, &mut window, cx);
@@ -435,6 +435,16 @@ impl App {
     let mut lock = self.keybinds.borrow_mut();
     lock.add_bindings(keybinds);
   }
+  pub fn focused<E>(&self, entity: Entity<E>, window: &Window) -> bool {
+    let Some(active_panel) = window.active_panel.as_ref() else {
+      return false;
+    };
+    window
+      .root
+      .as_ref()
+      .and_then(|root| root.find(*active_panel))
+      .is_some_and(|panel| panel.view.entity_id() == entity.entity_id)
+  }
 }
 impl AppContext for App {
   fn new_entity<F, E>(&mut self, f: F) -> Entity<E>
@@ -537,6 +547,10 @@ impl<'a, E> Context<'a, E> {
     move |e: &A, window: &mut Window, cx: &mut App| {
       view.update(cx, |view, cx| f(view, e, window, cx))
     }
+  }
+
+  pub fn focused(&self, window: &Window) -> bool {
+    (**self).focused(self.entity.clone(), window)
   }
 }
 

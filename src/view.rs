@@ -7,7 +7,7 @@ use ratatui::{
   Frame, Terminal, crossterm, layout::Rect, prelude::CrosstermBackend,
 };
 
-use crate::{AnyEntity, App, Context, Entity, Keystroke, Window};
+use crate::{AnyEntity, App, Context, Entity, EntityId, Keystroke, Window};
 
 #[expect(unused_variables, reason = "default noop implementation")]
 pub trait Render: 'static + Sized {
@@ -44,6 +44,10 @@ impl AnyView {
     E: 'static,
   {
     self.entity.downcast()
+  }
+
+  pub fn entity_id(&self) -> EntityId {
+    self.entity.entity_id
   }
 }
 impl<V> From<Entity<V>> for AnyView
