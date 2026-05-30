@@ -25,6 +25,7 @@ pub struct Window {
   pub active_panel: Option<PanelId>,
   next_pane_id: u32,
   pub(crate) bounds: Rect,
+  pub(crate) dirty: bool,
 
   #[debug(skip)]
   action_listeners: FxHashMap<TypeId, Vec<ActionListener>>,
@@ -33,7 +34,7 @@ pub struct Window {
 }
 impl Window {
   pub(crate) fn new(handle: AnyWindowHandle, config: WindowConfig) -> Self {
-    let WindowConfig { area, .. } = config;
+    let WindowConfig { bounds, .. } = config;
 
     let mut action_listeners: FxHashMap<TypeId, Vec<ActionListener>> =
       FxHashMap::default();
@@ -42,7 +43,6 @@ impl Window {
       .or_default()
       .push(Rc::new(move |_, window, _| {
         window.focus(1);
-        tracing::debug!("{:?}", window.active_panel);
       }));
     action_listeners
       .entry(FocusPrev.type_id())
@@ -56,8 +56,8 @@ impl Window {
       root: None,
       active_panel: Some(PanelId(0)),
       next_pane_id: 1,
-
-      bounds: area,
+      bounds,
+      dirty: false,
       action_listeners,
       layout_engine: LayoutEngine::default(),
     }
@@ -133,6 +133,11 @@ impl Window {
       let view = pane.view.clone();
       (view.on_keystroke)(&view, keystroke, self, cx);
     };
+
+    if self.dirty {
+      self.render(cx);
+      // self.dirty = false;
+    };
   }
 
   pub fn on_action<F, A>(&mut self, f: F)
@@ -158,9 +163,6 @@ impl Window {
     if order.is_empty() {
       return;
     };
-    tracing::debug!("{:?}", order);
-    tracing::debug!("{:?}", self.active_panel);
-    tracing::debug!("idx: {}", idx);
 
     let current_idx = self
       .active_panel
@@ -168,22 +170,20 @@ impl Window {
       .unwrap_or(0);
     let focus_idx =
       ((current_idx as i32) + idx).rem_euclid(order.len() as i32) as usize;
-    tracing::debug!("cur_idx: {}", current_idx);
-    tracing::debug!("focus_idx: {}", focus_idx);
     self.active_panel = Some(order[focus_idx]);
   }
 }
 
 #[derive(Debug)]
 pub struct WindowConfig {
-  pub area: Rect,
+  pub bounds: Rect,
 }
 impl Default for WindowConfig {
   fn default() -> Self {
     let (width, height) = ratatui::crossterm::terminal::size().unwrap();
 
     Self {
-      area: Rect {
+      bounds: Rect {
         x: 0,
         y: 0,
         width,

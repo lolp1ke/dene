@@ -119,11 +119,11 @@ impl App {
 
           // TODO: render only on change detected, like: [`.notify()`]
           _ = tick.tick() => {
-            let mut windows = std::mem::take(&mut app.borrow_mut().windows);
-            for window in windows.iter_mut().flat_map(|(_, window)| window) {
-              window.render(&mut app.borrow_mut());
-            }
-            app.borrow_mut().windows = windows;
+            // let mut windows = std::mem::take(&mut app.borrow_mut().windows);
+            // for window in windows.iter_mut().flat_map(|(_, window)| window) {
+            //   window.render(&mut app.borrow_mut());
+            // }
+            // app.borrow_mut().windows = windows;
           }
         }
       }
@@ -187,6 +187,7 @@ impl App {
           .map(|panel| panel.view.clone())?;
 
         let result = f(view, &mut window, cx);
+        window.dirty = true;
         cx.windows.get_mut(id)?.replace(window);
 
         Some(result)
@@ -215,7 +216,11 @@ impl App {
     ) {
       keystroke.push_str("meta-");
     };
-    keystroke.push_str(&key.code.to_string());
+    if let term_event::KeyCode::BackTab = key.code {
+      keystroke.push_str("tab");
+    } else {
+      keystroke.push_str(&key.code.to_string());
+    };
 
     if let Ok(keystroke) = Keystroke::parse(&keystroke) {
       let keybinds = self.keybinds.clone();
@@ -230,8 +235,9 @@ impl App {
       // TODO: save for second keybind if no action
       //       e.g: cmd+k cmd+l
 
+      tracing::debug!("keystroke: {:?}", keystroke);
       if let Some(active_window) = self.active_window {
-        active_window.update(self, |_, window, cx| {
+        active_window.update(self, |view, window, cx| {
           window.dispatch_keystroke(keystroke, cx);
         })?;
       };
@@ -320,6 +326,10 @@ impl App {
         } => {
           self.apply_emit(emitter, event_ty, &*event);
         }
+        Effect::Notify { entity_id } => {
+          tracing::debug!("notify: {:?}", entity_id);
+          // notify other entities who watches [`entity_id`]
+        }
       };
     }
   }
@@ -339,6 +349,17 @@ impl App {
           true
         }
       });
+  }
+
+  pub fn notify(&mut self, entity_id: EntityId) {
+    self.pending_effects.push_back(Effect::Notify { entity_id });
+    // if let Some(active_window) = self.active_window {
+    //   active_window
+    //     .update(self, |_, window, _| {
+    //       // window.dirty = true;
+    //     })
+    //     .expect("window is already gone");
+    // };
   }
 
   pub fn subscribe<E, F, Event>(&mut self, entity: Entity<E>, mut on_event: F)
@@ -588,5 +609,8 @@ pub(crate) enum Effect {
     emitter: EntityId,
     event_ty: TypeId,
     event: Box<dyn Any>,
+  },
+  Notify {
+    entity_id: EntityId,
   },
 }

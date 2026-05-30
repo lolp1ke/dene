@@ -35,6 +35,7 @@ default = [
   "serde",
   "toml",
   "taffy",
+  "tokio",
 ]
 
 crossterm = ["crossterm/event-stream"]
@@ -47,6 +48,7 @@ ratatui = ["ratatui/crossterm"]
 rustc-hash = ["rustc-hash/std"]
 serde = ["serde/derive", "serde/std"]
 taffy = ["taffy/taffy_tree", "taffy/flexbox", "taffy/std"]
+tokio = ["tokio/sync"]
 toml = ["toml/serde", "toml/parse"]
 
 [dependencies]

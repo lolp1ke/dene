@@ -90,8 +90,8 @@ impl Keystroke {
       } else {
         // convert ascii chars to lowercase so that named keys like "tab" and "enter"
         // are accepted case insensitively and stored how we expect so they are matched properly
-        key_str.make_ascii_lowercase()
-      }
+        key_str.make_ascii_lowercase();
+      };
 
       key = Some(key_str.clone());
       if modifiers.contains(Modifiers::SHIFT) {
