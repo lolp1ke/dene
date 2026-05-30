@@ -48,7 +48,13 @@ ratatui = ["ratatui/crossterm"]
 rustc-hash = ["rustc-hash/std"]
 serde = ["serde/derive", "serde/std"]
 taffy = ["taffy/taffy_tree", "taffy/flexbox", "taffy/std"]
-tokio = ["tokio/sync"]
+tokio = [
+  "tokio/sync",
+  "tokio/time",
+  "tokio/macros",
+  "tokio/rt",
+  "tokio/rt-multi-thread",
+]
 toml = ["toml/serde", "toml/parse"]
 
 [dependencies]
