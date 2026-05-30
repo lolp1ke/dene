@@ -36,6 +36,7 @@ default = [
   "toml",
   "taffy",
   "tokio",
+  "futures-util",
 ]
 
 crossterm = ["crossterm/event-stream"]
@@ -44,6 +45,7 @@ derive_more = [
   "derive_more/deref",
   "derive_more/deref_mut",
 ]
+futures-util = ["futures-util/alloc"]
 ratatui = ["ratatui/crossterm"]
 rustc-hash = ["rustc-hash/std"]
 serde = ["serde/derive", "serde/std"]
