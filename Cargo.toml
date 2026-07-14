@@ -1,0 +1,21 @@
+# SPDX-License-Identifier: Apache-2.0
+
+[package]
+name = "dene"
+version = "0.1.0"
+edition = "2024"
+
+[features]
+default = ["crossterm", "derive_more", "tokio"]
+
+crossterm = ["crossterm/event-stream"]
+derive_more = ["derive_more/debug"]
+tokio = ["tokio/rt-multi-thread", "tokio/macros"]
+
+[dependencies]
+anyhow = { version = "1.0.103", default-features = false }
+crossterm = { version = "0.29.0", default-features = false }
+derive_more = { version = "2.1.1", default-features = false }
+futures-util = { version = "0.3.32", default-features = false }
+slotmap = { version = "1.1.1", default-features = false }
+tokio = { version = "1.52.3", default-features = false }
