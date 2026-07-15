@@ -17,7 +17,7 @@ use slotmap::SlotMap;
 
 use crate::{
   AnyWindowHandle, Entity, EntityId, EntityMap, Global, Keystroke, Render,
-  TERM, Terminal, Window, WindowHandle, WindowId, WindowOptions,
+  TERM, Terminal, Window, WindowHandle, WindowId, WindowOptions, get_terminal,
 };
 
 #[derive(Debug)]
@@ -33,10 +33,30 @@ impl Application {
   where
     F: FnOnce(&mut App) -> R,
   {
-    let rt = tokio::runtime::Handle::current();
+    let rt = tokio::runtime::Handle::try_current();
     let cx = self.app.clone();
 
-    rt.block_on(async move { App::run(cx, f).await })
+    match rt {
+      Ok(rt) => {
+        if matches!(
+          rt.runtime_flavor(),
+          tokio::runtime::RuntimeFlavor::CurrentThread
+        ) {
+          panic!("required runtime flavor is `rt-multi-thread`");
+        };
+
+        tokio::task::block_in_place(move || {
+          rt.block_on(async move { App::run(cx, f).await })
+        })
+      }
+      Err(..) => {
+        let rt = tokio::runtime::Builder::new_multi_thread()
+          .enable_all()
+          .build()
+          .unwrap();
+        rt.block_on(async move { App::run(cx, f).await })
+      }
+    }
   }
 }
 impl Default for Application {
@@ -113,7 +133,7 @@ impl App {
 
     let mut event_stream = EventStream::new();
 
-    while this.borrow().quitting.load(atomic::Ordering::Relaxed) {
+    while !this.borrow().quitting.load(atomic::Ordering::Relaxed) {
       tokio::select! {
         Some(Ok(event)) = event_stream.next() => {
           this.borrow_mut().handle_event(event);
@@ -149,7 +169,9 @@ impl App {
   }
   fn handle_event(&mut self, event: term_event::Event) {
     match event {
-      term_event::Event::Key(key) => {}
+      term_event::Event::Key(key_event) => {
+        self.handle_key_event(key_event);
+      }
       term_event::Event::Resize(width, height) => {}
 
       _ => {}

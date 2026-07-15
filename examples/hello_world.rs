@@ -14,7 +14,7 @@ fn main() {
     cx.open_window(Default::default(), |_window, cx| {
       cx.new_entity(|_| HelloWorld {})
     })
-  });
+  })
 }
 
 struct HelloWorld {}

@@ -10,6 +10,7 @@
   ![rust toolchain](https://img.shields.io/badge/rust-stable_1.94.0-purple.svg)
   ![architecture](https://img.shields.io/badge/arch-arm64-purple.svg)
   ![loc](https://img.shields.io/endpoint?url=https://ghloc.vercel.app/api/lolp1ke/dene/badge&color=purple)
+  ![license](https://img.shields.io/badge/license-Apache--2.0-purple.svg)
 </div>
 
 ## getting started

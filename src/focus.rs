@@ -8,4 +8,5 @@ slotmap::new_key_type! {
 pub struct FocusHandle {
   id: FocusId,
   tab_index: isize,
+  tab_stop: bool,
 }
