@@ -27,15 +27,33 @@ impl Element for Div {
     window: &mut Window,
     cx: &mut App,
   ) -> (taffy::NodeId, Self::RequestLayoutState) {
-    todo!();
+    let child_node_ids = self
+      .children
+      .iter_mut()
+      .map(|child| child.request_layout(window, cx))
+      .collect::<SmallVec<_>>();
+
+    let node_id = window.request_layout(
+      self.interactivity.base_style.clone(),
+      &child_node_ids,
+      cx,
+    );
+    (node_id, child_node_ids)
   }
   fn pre_render(
     &mut self,
     bounds: Rect,
+    request_layout: &mut Self::RequestLayoutState,
     window: &mut Window,
     cx: &mut App,
   ) -> Self::PreRenderState {
-    todo!();
+    if matches!(self.interactivity.base_style.display, taffy::Display::None) {
+      return;
+    };
+
+    for child in self.children.iter_mut() {
+      child.pre_render(window, cx);
+    }
   }
   fn render(
     &mut self,
@@ -45,7 +63,13 @@ impl Element for Div {
     window: &mut Window,
     cx: &mut App,
   ) {
-    todo!();
+    if matches!(self.interactivity.base_style.display, taffy::Display::None) {
+      return;
+    };
+
+    for child in self.children.iter_mut() {
+      child.render(window, cx);
+    }
   }
 }
 impl IntoElement for Div {

@@ -2,6 +2,8 @@
 
 mod div;
 mod empty;
+mod text;
 
 pub use div::*;
 pub use empty::*;
+pub use text::*;

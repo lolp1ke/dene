@@ -2,6 +2,7 @@
 
 pub(crate) mod action;
 pub mod app;
+pub(crate) mod dispatch;
 pub mod element;
 pub mod elements;
 pub(crate) mod entity;
@@ -24,6 +25,7 @@ pub mod private {
 
 pub(crate) use action::*;
 pub(crate) use app::*;
+pub(crate) use dispatch::*;
 pub(crate) use element::*;
 pub(crate) use elements::*;
 pub(crate) use entity::*;

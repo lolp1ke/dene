@@ -11,12 +11,49 @@ use crate::Action;
 #[derive(derive_more::Deref, derive_more::DerefMut)]
 #[derive(Default)]
 pub struct Keybinds(pub(crate) Vec<Keybind>);
+impl Keybinds {
+  pub(crate) fn match_input(
+    &self,
+    input: &[&Keystroke],
+  ) -> (SmallVec<[&Keybind; 1]>, bool) {
+    let mut exact = SmallVec::<[&Keybind; 1]>::new();
+    let mut has_pending = false;
+
+    for binding in self.0.iter() {
+      if !binding.match_keystrokes(input) {
+        continue;
+      };
+
+      if input.len() == binding.keystrokes.len() {
+        exact.push(binding);
+      } else {
+        has_pending = true;
+      };
+    }
+
+    (exact, has_pending)
+  }
+}
 
 #[derive(Debug)]
 pub struct Keybind {
   pub(crate) action: Box<dyn Action>,
   pub(crate) keystrokes: SmallVec<[Keystroke; 2]>,
   pub(crate) key_context: Option<Rc<KeybindContextPredicate>>,
+}
+impl Keybind {
+  fn match_keystrokes(&self, input: &[&Keystroke]) -> bool {
+    if input.len() > self.keystrokes.len() {
+      return false;
+    };
+
+    for (target, input) in self.keystrokes.iter().zip(input.iter()) {
+      if target.key != input.key || target.modifiers != input.modifiers {
+        return false;
+      };
+    }
+    true
+  }
 }
 
 #[derive(Debug)]
@@ -113,6 +150,7 @@ impl KeybindContextPredicate {
 }
 
 #[derive(Debug)]
+#[derive(Clone)]
 pub struct Keystroke {
   modifiers: Modifiers,
   key: Arc<str>,
@@ -200,6 +238,7 @@ impl Keystroke {
 bitflags::bitflags! {
   #[derive(Debug)]
   #[derive(Clone, Copy)]
+  #[derive(PartialEq)]
   pub struct Modifiers: u32 {
     const NONE = 1 << 0;
     const SHIFT = 1 << 1;

@@ -2,7 +2,7 @@
 
 use crate::{
   AnyElement, AnyEntity, App, Element, Entity, IntoElement, Rect, Render,
-  Window,
+  Window, element,
 };
 
 #[derive(Debug)]
@@ -31,23 +31,30 @@ where
   }
 }
 impl Element for AnyView {
-  type RequestLayoutState = ();
-  type PreRenderState = ();
+  type RequestLayoutState = Option<AnyElement>;
+  type PreRenderState = Option<AnyElement>;
 
   fn request_layout(
     &mut self,
     window: &mut Window,
     cx: &mut App,
   ) -> (taffy::NodeId, Self::RequestLayoutState) {
-    todo!();
+    let mut element = (self.render)(self, window, cx);
+    let node_id = element.request_layout(window, cx);
+    (node_id, Some(element))
   }
   fn pre_render(
     &mut self,
     bounds: Rect,
+    request_layout: &mut Self::RequestLayoutState,
     window: &mut Window,
     cx: &mut App,
   ) -> Self::PreRenderState {
-    todo!();
+    if let Some(mut element) = request_layout.take() {
+      element.pre_render(window, cx);
+      return Some(element);
+    };
+    None
   }
   fn render(
     &mut self,
@@ -57,7 +64,7 @@ impl Element for AnyView {
     window: &mut Window,
     cx: &mut App,
   ) {
-    todo!();
+    pre_render.as_mut().unwrap().render(window, cx);
   }
 }
 impl IntoElement for AnyView {

@@ -3,7 +3,7 @@
 use std::{
   any::{Any, TypeId},
   cell::RefCell,
-  collections::VecDeque,
+  collections::{HashMap, VecDeque},
   rc::{self, Rc},
   sync::atomic::{self, AtomicBool},
 };
@@ -18,9 +18,10 @@ use slotmap::SlotMap;
 use smallvec::smallvec;
 
 use crate::{
-  ActionRegistry, AnyView, AnyWindowHandle, DeneInput, Entity, EntityId,
-  EntityMap, Global, KeyDownEvent, KeyUpEvent, Keybind, Keybinds, Keystroke,
-  Quit, Render, TERM, Terminal, Window, WindowHandle, WindowId, WindowOptions,
+  Action, ActionRegistry, AnyView, AnyWindowHandle, DeneInput, DispatchPhase,
+  Entity, EntityId, EntityMap, Global, KeyDownEvent, KeyUpEvent, Keybind,
+  Keybinds, Keystroke, NoAction, Quit, Render, TERM, Terminal, Window,
+  WindowHandle, WindowId, WindowOptions, get_terminal,
 };
 
 #[derive(Debug)]
@@ -68,17 +69,22 @@ impl Default for Application {
   }
 }
 
-#[derive(Debug)]
+type GlobalActionListener = Rc<dyn Fn(&dyn Any, DispatchPhase, &mut App)>;
+
+#[derive(derive_more::Debug)]
 pub struct App {
   this: rc::Weak<RefCell<Self>>,
   quitting: AtomicBool,
 
-  actions: Rc<ActionRegistry>,
-  keybinds: Rc<RefCell<Keybinds>>,
+  pub(crate) actions: Rc<ActionRegistry>,
+  pub(crate) keybinds: Rc<RefCell<Keybinds>>,
   globals_by_type: FxHashMap<TypeId, Box<dyn Any>>,
 
   active_window: Option<AnyWindowHandle>,
   windows: SlotMap<WindowId, Option<Box<Window>>>,
+
+  #[debug(skip)]
+  global_action_listeners: FxHashMap<TypeId, Vec<GlobalActionListener>>,
 
   entities: EntityMap,
 
@@ -95,7 +101,10 @@ impl App {
     let mut keybinds = Keybinds(Vec::new());
     keybinds.push(Keybind {
       action: Box::new(Quit),
-      keystrokes: smallvec![Keystroke::parse("ctrl-q").unwrap()],
+      keystrokes: smallvec![
+        Keystroke::parse("ctrl-;").unwrap(),
+        Keystroke::parse("ctrl-q").unwrap()
+      ],
       key_context: None,
     });
 
@@ -108,6 +117,7 @@ impl App {
         globals_by_type: Default::default(),
         active_window: None,
         windows: Default::default(),
+        global_action_listeners: Default::default(),
         entities: Default::default(),
         pending_updates: 0,
         pending_effects: Default::default(),
@@ -128,8 +138,11 @@ impl App {
     self.update(move |cx| {
       let window_id = cx.windows.insert(None);
       let handle = WindowHandle::new(window_id);
-      let mut window = Window::new(window_options);
+
+      let mut window = Window::new(window_options, cx);
       window.root = Some(f(&mut window, cx).into());
+      window.render(cx);
+
       cx.windows
         .get_mut(window_id)
         .unwrap()
@@ -144,6 +157,9 @@ impl App {
     F: FnOnce(&mut Self) -> R,
   {
     let result = f(&mut this.borrow_mut());
+    this.borrow_mut().on_action(|_: &Quit, _, cx| {
+      cx.quitting.store(true, atomic::Ordering::Relaxed);
+    });
 
     let mut event_stream = EventStream::new();
 
@@ -155,7 +171,24 @@ impl App {
       }
     }
 
+    get_terminal().write().restore();
     anyhow::Ok(result)
+  }
+
+  fn on_action<F, A>(&mut self, listener: F)
+  where
+    F: 'static + Fn(&A, DispatchPhase, &mut Self),
+    A: Action,
+  {
+    self
+      .global_action_listeners
+      .entry(TypeId::of::<A>())
+      .or_default()
+      .push(Rc::new(move |action, phase, cx| {
+        if let Some(action) = action.downcast_ref() {
+          (listener)(action, phase, cx)
+        };
+      }));
   }
 
   fn handle_key_event(&mut self, key_event: term_event::KeyEvent) {
@@ -163,21 +196,65 @@ impl App {
 
     let mut keystroke = String::new();
 
-    if matches!(key_event.modifiers, KeyModifiers::SHIFT) {
+    if matches!(
+      key_event.code,
+      term_event::KeyCode::Char('\0') | term_event::KeyCode::Null
+    ) {
+      return;
+    };
+
+    if key_event.modifiers.contains(KeyModifiers::SHIFT) {
       keystroke.push_str("shift-");
     };
-    if matches!(key_event.modifiers, KeyModifiers::CONTROL) {
+    if key_event.modifiers.contains(KeyModifiers::CONTROL) {
       keystroke.push_str("ctrl-");
     };
-    if matches!(key_event.modifiers, KeyModifiers::ALT) {
+    if key_event.modifiers.contains(KeyModifiers::ALT) {
       keystroke.push_str("alt-");
     };
-    if matches!(
-      key_event.modifiers,
-      KeyModifiers::SUPER | KeyModifiers::HYPER | KeyModifiers::META
+    if key_event.modifiers.intersects(
+      KeyModifiers::SUPER | KeyModifiers::HYPER | KeyModifiers::META,
     ) {
       keystroke.push_str("meta-");
     };
+
+    match key_event.code {
+      term_event::KeyCode::Backspace => keystroke.push_str("delete"),
+      term_event::KeyCode::Enter => keystroke.push_str("return"),
+      term_event::KeyCode::Left => keystroke.push_str("left"),
+      term_event::KeyCode::Right => keystroke.push_str("right"),
+      term_event::KeyCode::Up => keystroke.push_str("up"),
+      term_event::KeyCode::Down => keystroke.push_str("down"),
+      term_event::KeyCode::BackTab => keystroke.push_str("tab"),
+      term_event::KeyCode::Tab => keystroke.push_str("tab"),
+      term_event::KeyCode::F(f) => {
+        keystroke.push('f');
+        if f < 10 {
+          keystroke.push((f + 48) as char);
+        } else {
+          // NOTE: won't work on f > 99
+          //       keystroke.push('1'); // mb hardcode it? who has fn19 and greator anyway?
+          keystroke.push((f / 9 + 48) as char);
+          keystroke.push((f - 10 + 48) as char);
+        };
+      }
+      term_event::KeyCode::Char(ch) => {
+        keystroke.push(ch);
+      }
+      code if !key_event.modifiers.intersects(KeyModifiers::all()) => {
+        keystroke.push_str(code.to_string().to_ascii_lowercase().as_str());
+      }
+      _ => {
+        if let Some(ch) = key_event.code.as_char() {
+          keystroke.push(ch);
+        };
+
+        if !key_event.modifiers.is_empty() {
+          return;
+        };
+      }
+    }
+    dbg!(&keystroke);
 
     if let Ok(keystroke) = Keystroke::parse(&keystroke) {
       let dene_input = match key_event.kind {
@@ -194,8 +271,12 @@ impl App {
         }
       };
 
-      if let Some(active_window) = self.active_window {
-        _ = active_window.update(self, |_, window, cx| {});
+      if let Some(active_window) = self.active_window
+        && let Some(keyboard_event) = dene_input.keyboard_event()
+      {
+        _ = active_window.update(self, |_, window, cx| {
+          window.dispatch_keyboard_event(keyboard_event, cx);
+        });
       };
     };
   }
@@ -214,6 +295,26 @@ impl App {
       }
 
       _ => {}
+    };
+  }
+
+  pub(crate) fn dispatch_global_action(&mut self, action: &dyn Action) {
+    let action_ty_id = action.as_any().type_id();
+    if let Some(global_action_listeners) =
+      self.global_action_listeners.remove(&action_ty_id)
+    {
+      for listener in global_action_listeners.iter() {
+        (listener)(action, DispatchPhase::Capture, self);
+      }
+
+      // TODO: prevent event propogation if set so
+      for listener in global_action_listeners.iter().rev() {
+        (listener)(action, DispatchPhase::Bubble, self);
+      }
+
+      self
+        .global_action_listeners
+        .insert(action_ty_id, global_action_listeners);
     };
   }
 

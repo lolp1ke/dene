@@ -3,7 +3,7 @@
 use dene::{
   app::{AppContext, Application, Context},
   element::{IntoElement, Render},
-  elements::Empty,
+  elements::{Empty, div},
   window::Window,
 };
 
@@ -24,6 +24,6 @@ impl Render for HelloWorld {
     _window: &mut Window,
     _cx: &mut Context<Self>,
   ) -> impl IntoElement {
-    Empty
+    div()
   }
 }

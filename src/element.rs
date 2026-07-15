@@ -2,7 +2,7 @@
 
 use std::{fmt::Debug, mem};
 
-use crate::{App, Context, Rect, Window};
+use crate::{App, Context, DispatchNodeId, Rect, Window};
 
 pub trait Render: 'static + Sized {
   fn render(
@@ -32,6 +32,7 @@ pub trait Element: 'static + IntoElement {
   fn pre_render(
     &mut self,
     bounds: Rect,
+    request_layout: &mut Self::RequestLayoutState,
     window: &mut Window,
     cx: &mut App,
   ) -> Self::PreRenderState;
@@ -55,17 +56,17 @@ pub trait Element: 'static + IntoElement {
 #[derive(Debug)]
 pub struct AnyElement(Box<dyn ElementObject>);
 impl AnyElement {
-  fn request_layout(
+  pub(crate) fn request_layout(
     &mut self,
     window: &mut Window,
     cx: &mut App,
   ) -> taffy::NodeId {
     self.0.request_layout(window, cx)
   }
-  fn pre_render(&mut self, window: &mut Window, cx: &mut App) {
+  pub(crate) fn pre_render(&mut self, window: &mut Window, cx: &mut App) {
     self.0.pre_render(window, cx);
   }
-  fn render(&mut self, window: &mut Window, cx: &mut App) {
+  pub(crate) fn render(&mut self, window: &mut Window, cx: &mut App) {
     self.0.render(window, cx);
   }
 }
@@ -84,6 +85,7 @@ impl Element for AnyElement {
   fn pre_render(
     &mut self,
     _: Rect,
+    _: &mut Self::RequestLayoutState,
     window: &mut Window,
     cx: &mut App,
   ) -> Self::PreRenderState {
@@ -135,7 +137,13 @@ where
   ) -> taffy::NodeId {
     match mem::take(&mut self.phase) {
       DrawableObjectPhase::Start => {
-        todo!()
+        let (node_id, request_layout) = self.element.request_layout(window, cx);
+
+        self.phase = DrawableObjectPhase::RequestLayout {
+          node_id,
+          request_layout,
+        };
+        node_id
       }
       _ => panic!("MUST BE CALLED ONCE"),
     }
@@ -144,8 +152,23 @@ where
     match mem::take(&mut self.phase) {
       DrawableObjectPhase::RequestLayout {
         node_id,
-        request_layout,
-      } => {}
+        mut request_layout,
+      } => {
+        let bounds = window.layout_bounds(node_id);
+        let dispatch_node_id = window.next_frame.dispatch_tree.push_node();
+        let pre_render =
+          self
+            .element
+            .pre_render(bounds, &mut request_layout, window, cx);
+        window.next_frame.dispatch_tree.pop_node();
+
+        self.phase = DrawableObjectPhase::PreRender {
+          dispatch_node_id,
+          bounds,
+          request_layout,
+          pre_render,
+        }
+      }
       _ => panic!("MUST BE CALLED AFTER `request_layout`"),
     }
   }
@@ -153,16 +176,28 @@ where
     &mut self,
     window: &mut Window,
     cx: &mut App,
-  ) -> (E::RequestLayoutState, E::RequestLayoutState) {
+  ) -> (E::RequestLayoutState, E::PreRenderState) {
     match mem::take(&mut self.phase) {
       DrawableObjectPhase::PreRender {
-        node_id,
+        dispatch_node_id,
         bounds,
-        request_layout,
-        pre_render,
+        mut request_layout,
+        mut pre_render,
       } => {
+        window
+          .next_frame
+          .dispatch_tree
+          .set_active_node(dispatch_node_id);
+        self.element.render(
+          bounds,
+          &mut request_layout,
+          &mut pre_render,
+          window,
+          cx,
+        );
+
         self.phase = DrawableObjectPhase::Rendered;
-        todo!();
+        (request_layout, pre_render)
       }
       _ => panic!("MUST BE CALLED AFTER `pre_render`"),
     }
@@ -196,7 +231,7 @@ enum DrawableObjectPhase<RequestLayoutState, PreRenderState> {
     request_layout: RequestLayoutState,
   },
   PreRender {
-    node_id: taffy::NodeId,
+    dispatch_node_id: DispatchNodeId,
     bounds: Rect,
     request_layout: RequestLayoutState,
     pre_render: PreRenderState,

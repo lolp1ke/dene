@@ -37,6 +37,7 @@ impl Element for Empty {
   fn pre_render(
     &mut self,
     _: Rect,
+    _: &mut Self::RequestLayoutState,
     _: &mut Window,
     _: &mut App,
   ) -> Self::PreRenderState {
