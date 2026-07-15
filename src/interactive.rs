@@ -4,7 +4,7 @@ use std::any::Any;
 
 use crate::Keystroke;
 
-pub(crate) trait InputEvent {
+pub(crate) trait InputEvent: 'static {
   fn to_dene_input(self) -> DeneInput;
 }
 pub(crate) trait KeyboardEvent: InputEvent {}
@@ -34,7 +34,7 @@ impl DeneInput {
 }
 
 #[derive(Debug)]
-pub(crate) struct KeyDownEvent {
+pub struct KeyDownEvent {
   pub(crate) keystroke: Keystroke,
   pub(crate) is_held: bool,
 }
@@ -46,7 +46,7 @@ impl InputEvent for KeyDownEvent {
 impl KeyboardEvent for KeyDownEvent {}
 
 #[derive(Debug)]
-pub(crate) struct KeyUpEvent {
+pub struct KeyUpEvent {
   pub(crate) keystroke: Keystroke,
 }
 impl InputEvent for KeyUpEvent {

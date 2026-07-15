@@ -67,6 +67,7 @@ impl Element for Div {
       return;
     };
 
+    self.interactivity.apply_keyboard_listeners(window);
     for child in self.children.iter_mut() {
       child.render(window, cx);
     }

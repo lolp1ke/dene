@@ -254,7 +254,6 @@ impl App {
         };
       }
     }
-    dbg!(&keystroke);
 
     if let Ok(keystroke) = Keystroke::parse(&keystroke) {
       let dene_input = match key_event.kind {

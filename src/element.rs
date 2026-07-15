@@ -2,7 +2,10 @@
 
 use std::{fmt::Debug, mem};
 
-use crate::{App, Context, DispatchNodeId, Rect, Window};
+use crate::{
+  App, Context, DispatchNodeId, DispatchPhase, KeyDownEvent, KeyUpEvent, Rect,
+  Window,
+};
 
 pub trait Render: 'static + Sized {
   fn render(
@@ -167,7 +170,7 @@ where
           bounds,
           request_layout,
           pre_render,
-        }
+        };
       }
       _ => panic!("MUST BE CALLED AFTER `request_layout`"),
     }
@@ -254,14 +257,115 @@ impl Debug for dyn ElementObject {
   }
 }
 
+type KeyDownListener =
+  Box<dyn 'static + Fn(&KeyDownEvent, DispatchPhase, &mut Window, &mut App)>;
+type KeyUpListener =
+  Box<dyn 'static + Fn(&KeyUpEvent, DispatchPhase, &mut Window, &mut App)>;
+
 #[derive(derive_more::Debug)]
 #[derive(Default)]
 pub struct Interactivity {
   #[debug(skip)]
   pub(crate) base_style: taffy::Style,
+
+  #[debug(skip)]
+  pub(crate) key_down_listener: Vec<KeyDownListener>,
+  #[debug(skip)]
+  pub(crate) key_up_listener: Vec<KeyUpListener>,
 }
-pub trait InteractiveElement {
+impl Interactivity {
+  pub(crate) fn apply_keyboard_listeners(&mut self, window: &mut Window) {
+    let key_down_listeners = mem::take(&mut self.key_down_listener);
+    let key_up_listeners = mem::take(&mut self.key_up_listener);
+
+    for listener in key_down_listeners.into_iter() {
+      window.on_key_event(listener);
+    }
+    for listener in key_up_listeners.into_iter() {
+      window.on_key_event(listener);
+    }
+  }
+
+  fn on_key_down<F>(&mut self, listener: F)
+  where
+    F: 'static + Fn(&KeyDownEvent, &mut Window, &mut App),
+  {
+    self
+      .key_down_listener
+      .push(Box::new(move |event, phase, window, cx| {
+        if matches!(phase, DispatchPhase::Bubble) {
+          (listener)(event, window, cx);
+        };
+      }));
+  }
+  fn capture_key_down<F>(&mut self, listener: F)
+  where
+    F: 'static + Fn(&KeyDownEvent, &mut Window, &mut App),
+  {
+    self
+      .key_down_listener
+      .push(Box::new(move |event, phase, window, cx| {
+        if matches!(phase, DispatchPhase::Capture) {
+          (listener)(event, window, cx);
+        };
+      }));
+  }
+  fn on_key_up<F>(&mut self, listener: F)
+  where
+    F: 'static + Fn(&KeyUpEvent, &mut Window, &mut App),
+  {
+    self
+      .key_up_listener
+      .push(Box::new(move |event, phase, window, cx| {
+        if matches!(phase, DispatchPhase::Bubble) {
+          (listener)(event, window, cx);
+        };
+      }));
+  }
+  fn capture_key_up<F>(&mut self, listener: F)
+  where
+    F: 'static + Fn(&KeyUpEvent, &mut Window, &mut App),
+  {
+    self
+      .key_up_listener
+      .push(Box::new(move |event, phase, window, cx| {
+        if matches!(phase, DispatchPhase::Capture) {
+          (listener)(event, window, cx);
+        };
+      }));
+  }
+}
+pub trait InteractiveElement: Sized {
   fn interactivity(&mut self) -> &mut Interactivity;
+
+  fn on_key_down<F>(mut self, listener: F) -> Self
+  where
+    F: 'static + Fn(&KeyDownEvent, &mut Window, &mut App),
+  {
+    self.interactivity().on_key_down(listener);
+    self
+  }
+  fn capture_key_down<F>(mut self, listener: F) -> Self
+  where
+    F: 'static + Fn(&KeyDownEvent, &mut Window, &mut App),
+  {
+    self.interactivity().capture_key_down(listener);
+    self
+  }
+  fn on_key_up<F>(mut self, listener: F) -> Self
+  where
+    F: 'static + Fn(&KeyUpEvent, &mut Window, &mut App),
+  {
+    self.interactivity().on_key_up(listener);
+    self
+  }
+  fn capture_key_up<F>(mut self, listener: F) -> Self
+  where
+    F: 'static + Fn(&KeyUpEvent, &mut Window, &mut App),
+  {
+    self.interactivity().capture_key_up(listener);
+    self
+  }
 }
 
 pub trait StyleableElement: Sized {

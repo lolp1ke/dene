@@ -2,7 +2,7 @@
 
 use dene::{
   app::{AppContext, Application, Context},
-  element::{IntoElement, Render},
+  element::{InteractiveElement, IntoElement, Render},
   elements::{Empty, div},
   window::Window,
 };
@@ -24,6 +24,8 @@ impl Render for HelloWorld {
     _window: &mut Window,
     _cx: &mut Context<Self>,
   ) -> impl IntoElement {
-    div()
+    div().on_key_down(|_, _, _| {
+      println!("PRESS DETECTED");
+    })
   }
 }

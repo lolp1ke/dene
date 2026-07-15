@@ -1,19 +1,30 @@
 // SPDX-License-Identifier: Apache-2.0
 
-use std::{cell::RefCell, ops::Index, rc::Rc, sync::Arc};
+use std::{
+  any::Any,
+  cell::RefCell,
+  ops::{Index, IndexMut},
+  rc::Rc,
+  sync::Arc,
+};
 
 use smallvec::SmallVec;
 
-use crate::{Action, ActionRegistry, Keybinds, Keystroke};
+use crate::{Action, ActionRegistry, App, Keybinds, Keystroke, Window};
 
 #[derive(Debug)]
 #[derive(Clone, Copy)]
 #[derive(PartialEq)]
-pub(crate) struct DispatchNodeId(usize);
+pub(crate) struct DispatchNodeId(pub(crate) usize);
 impl Index<DispatchNodeId> for Vec<DispatchNode> {
   type Output = DispatchNode;
   fn index(&self, index: DispatchNodeId) -> &Self::Output {
     &self[index.0]
+  }
+}
+impl IndexMut<DispatchNodeId> for Vec<DispatchNode> {
+  fn index_mut(&mut self, index: DispatchNodeId) -> &mut Self::Output {
+    &mut self[index.0]
   }
 }
 
@@ -42,6 +53,7 @@ impl DispatchTree {
   pub(crate) fn clear(&mut self) {
     self.node_stack.clear();
     self.nodes.clear();
+    self.context_stack.clear();
   }
 
   pub(crate) fn dispatch_keystroke(
@@ -67,9 +79,26 @@ impl DispatchTree {
     }
   }
 
+  pub(crate) fn dispatch_path(
+    &self,
+    target: DispatchNodeId,
+  ) -> SmallVec<[DispatchNodeId; 8]> {
+    let mut dispatch_path = SmallVec::new();
+    let mut current_node_id = Some(target);
+    while let Some(node_id) = current_node_id {
+      dispatch_path.push(node_id);
+      current_node_id = self.nodes.get(node_id.0).and_then(|node| node.parent);
+    }
+    dispatch_path.reverse();
+    dispatch_path
+  }
+  pub(crate) fn node(&self, node_id: &DispatchNodeId) -> &DispatchNode {
+    &self.nodes[*node_id]
+  }
+
   pub(crate) fn push_node(&mut self) -> DispatchNodeId {
     let parent = self.node_stack.last().copied();
-    let node_id = DispatchNodeId(self.node_stack.len());
+    let node_id = DispatchNodeId(self.nodes.len());
     self.nodes.push(DispatchNode {
       parent,
       ..Default::default()
@@ -97,22 +126,37 @@ impl DispatchTree {
       let active_node = &self.nodes[node_id];
       if let Some(context) = active_node.context.clone() {
         self.context_stack.push(context);
-      }
+      };
     } else {
       todo!();
     };
   }
 
+  pub(crate) fn on_key_event(&mut self, listener: KeyListener) {
+    self.active_node().key_listeners.push(listener);
+  }
+
   fn active_node_id(&self) -> Option<DispatchNodeId> {
     self.node_stack.last().copied()
   }
+  fn active_node(&mut self) -> &mut DispatchNode {
+    let idx = self.active_node_id().unwrap();
+    &mut self.nodes[idx]
+  }
+  pub(crate) fn root_node_id(&self) -> DispatchNodeId {
+    DispatchNodeId(0)
+  }
 }
 
-#[derive(Debug)]
+type KeyListener = Rc<dyn Fn(&dyn Any, DispatchPhase, &mut Window, &mut App)>;
+#[derive(derive_more::Debug)]
 #[derive(Default)]
 pub(crate) struct DispatchNode {
   pub(crate) parent: Option<DispatchNodeId>,
   context: Option<DispatchContext>,
+
+  #[debug("key_listeners.len({})", key_listeners.len())]
+  pub(crate) key_listeners: Vec<KeyListener>,
 }
 
 #[derive(Debug)]

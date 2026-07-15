@@ -3,15 +3,16 @@
 use std::{
   any::{Any, TypeId},
   marker::PhantomData,
+  rc::Rc,
 };
 
 use smallvec::SmallVec;
 use taffy::AvailableSpace;
 
 use crate::{
-  Action, AnyView, App, AppContext, DispatchKeystrokeResult, DispatchTree,
-  Element, FocusId, IntoElement, KeyDownEvent, KeyUpEvent, Keystroke,
-  LayoutEngine, NoAction, Rect, window,
+  Action, AnyView, App, AppContext, DispatchKeystrokeResult, DispatchNodeId,
+  DispatchPhase, DispatchTree, Element, FocusId, IntoElement, KeyDownEvent,
+  KeyUpEvent, KeyboardEvent, Keystroke, LayoutEngine, NoAction, Rect, window,
 };
 
 slotmap::new_key_type! {
@@ -126,6 +127,51 @@ impl Window {
         self.current_frame.pending_keystrokes.clear();
       }
     };
+
+    // TODO: get focused node's id or else fallback to root
+    let node_id =
+      DispatchNodeId(self.current_frame.dispatch_tree.nodes.len() - 1);
+    let dispatch_path =
+      &self.current_frame.dispatch_tree.dispatch_path(node_id);
+
+    self.dispatch_key_down_up_event(event, dispatch_path, cx);
+  }
+
+  fn dispatch_key_down_up_event(
+    &mut self,
+    event: &dyn Any,
+    dispatch_path: &[DispatchNodeId],
+    cx: &mut App,
+  ) {
+    for node_id in dispatch_path.iter() {
+      let node = self.current_frame.dispatch_tree.node(node_id);
+
+      for listener in node.key_listeners.clone().into_iter() {
+        (listener)(event, DispatchPhase::Capture, self, cx);
+      }
+    }
+
+    for node_id in dispatch_path.iter().rev() {
+      let node = self.current_frame.dispatch_tree.node(node_id);
+
+      for listener in node.key_listeners.clone().into_iter() {
+        (listener)(event, DispatchPhase::Bubble, self, cx);
+      }
+    }
+  }
+
+  pub(crate) fn on_key_event<F, KeyEvent>(&mut self, listener: F)
+  where
+    F: 'static + Fn(&KeyEvent, DispatchPhase, &mut Self, &mut App),
+    KeyEvent: KeyboardEvent,
+  {
+    self.next_frame.dispatch_tree.on_key_event(Rc::new(
+      move |event, phase, window, cx| {
+        if let Some(event) = event.downcast_ref::<KeyEvent>() {
+          (listener)(event, phase, window, cx);
+        };
+      },
+    ));
   }
 }
 
