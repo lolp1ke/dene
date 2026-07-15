@@ -1,17 +1,18 @@
 // SPDX-License-Identifier: Apache-2.0
 
-pub mod action;
+pub(crate) mod action;
 pub mod app;
 pub mod element;
 pub mod elements;
-pub mod entity;
-pub mod focus;
-pub mod geometry;
-pub mod global;
+pub(crate) mod entity;
+pub(crate) mod focus;
+pub(crate) mod geometry;
+pub(crate) mod global;
+pub(crate) mod interactive;
 pub mod keybind;
 pub(crate) mod layout;
 pub(crate) mod terminal;
-pub mod view;
+pub(crate) mod view;
 pub mod window;
 
 #[doc(hidden)]
@@ -29,6 +30,7 @@ pub(crate) use entity::*;
 pub(crate) use focus::*;
 pub(crate) use geometry::*;
 pub(crate) use global::*;
+pub(crate) use interactive::*;
 pub(crate) use keybind::*;
 pub(crate) use layout::*;
 pub(crate) use terminal::*;

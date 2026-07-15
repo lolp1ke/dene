@@ -8,10 +8,15 @@ use smallvec::SmallVec;
 use crate::Action;
 
 #[derive(Debug)]
+#[derive(derive_more::Deref, derive_more::DerefMut)]
+#[derive(Default)]
+pub struct Keybinds(pub(crate) Vec<Keybind>);
+
+#[derive(Debug)]
 pub struct Keybind {
-  action: Box<dyn Action>,
-  keystrokes: SmallVec<[Keystroke; 2]>,
-  key_context: Option<Rc<KeybindContextPredicate>>,
+  pub(crate) action: Box<dyn Action>,
+  pub(crate) keystrokes: SmallVec<[Keystroke; 2]>,
+  pub(crate) key_context: Option<Rc<KeybindContextPredicate>>,
 }
 
 #[derive(Debug)]

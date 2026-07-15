@@ -8,16 +8,19 @@ use std::{
   sync::atomic::{self, AtomicBool},
 };
 
+use anyhow::Context as _;
 use crossterm::event as term_event;
 use crossterm::event::EventStream;
 use futures_util::StreamExt as _;
 use parking_lot::RwLock;
 use rustc_hash::FxHashMap;
 use slotmap::SlotMap;
+use smallvec::smallvec;
 
 use crate::{
-  AnyWindowHandle, Entity, EntityId, EntityMap, Global, Keystroke, Render,
-  TERM, Terminal, Window, WindowHandle, WindowId, WindowOptions, get_terminal,
+  ActionRegistry, AnyView, AnyWindowHandle, DeneInput, Entity, EntityId,
+  EntityMap, Global, KeyDownEvent, KeyUpEvent, Keybind, Keybinds, Keystroke,
+  Quit, Render, TERM, Terminal, Window, WindowHandle, WindowId, WindowOptions,
 };
 
 #[derive(Debug)]
@@ -70,6 +73,8 @@ pub struct App {
   this: rc::Weak<RefCell<Self>>,
   quitting: AtomicBool,
 
+  actions: Rc<ActionRegistry>,
+  keybinds: Rc<RefCell<Keybinds>>,
   globals_by_type: FxHashMap<TypeId, Box<dyn Any>>,
 
   active_window: Option<AnyWindowHandle>,
@@ -87,10 +92,19 @@ impl App {
       .set(RwLock::new(Terminal::new()))
       .expect("failed to init terminal");
 
+    let mut keybinds = Keybinds(Vec::new());
+    keybinds.push(Keybind {
+      action: Box::new(Quit),
+      keystrokes: smallvec![Keystroke::parse("ctrl-q").unwrap()],
+      key_context: None,
+    });
+
     Rc::new_cyclic(|this| {
       RefCell::new(Self {
         this: this.clone(),
         quitting: AtomicBool::new(false),
+        actions: Rc::new(ActionRegistry::new()),
+        keybinds: Rc::new(RefCell::new(keybinds)),
         globals_by_type: Default::default(),
         active_window: None,
         windows: Default::default(),
@@ -165,14 +179,39 @@ impl App {
       keystroke.push_str("meta-");
     };
 
-    if let Ok(keystroke) = Keystroke::parse(&keystroke) {};
+    if let Ok(keystroke) = Keystroke::parse(&keystroke) {
+      let dene_input = match key_event.kind {
+        term_event::KeyEventKind::Press => DeneInput::KeyDown(KeyDownEvent {
+          keystroke,
+          is_held: false,
+        }),
+        term_event::KeyEventKind::Repeat => DeneInput::KeyDown(KeyDownEvent {
+          keystroke,
+          is_held: true,
+        }),
+        term_event::KeyEventKind::Release => {
+          DeneInput::KeyUp(KeyUpEvent { keystroke })
+        }
+      };
+
+      if let Some(active_window) = self.active_window {
+        _ = active_window.update(self, |_, window, cx| {});
+      };
+    };
   }
   fn handle_event(&mut self, event: term_event::Event) {
     match event {
       term_event::Event::Key(key_event) => {
         self.handle_key_event(key_event);
       }
-      term_event::Event::Resize(width, height) => {}
+      term_event::Event::Resize(width, height) => {
+        if let Some(active_window) = self.active_window {
+          _ = active_window.update(self, |_, window, _| {
+            window.bounds.width = width;
+            window.bounds.height = height;
+          });
+        };
+      }
 
       _ => {}
     };
@@ -193,6 +232,29 @@ impl App {
       .get(&TypeId::of::<G>())
       .and_then(|global| global.downcast_ref())
   }
+
+  fn update_window_id<F, R>(
+    &mut self,
+    window_id: WindowId,
+    f: F,
+  ) -> anyhow::Result<R>
+  where
+    F: FnOnce(AnyView, &mut Window, &mut Self) -> R,
+  {
+    self
+      .update(move |cx| {
+        let mut window = cx.windows.get_mut(window_id)?.take()?;
+        let view = window.root.as_ref().cloned()?;
+
+        let result = f(view, &mut window, cx);
+        window.dirty = true;
+        cx.windows.get_mut(window_id)?.replace(window);
+
+        Some(result)
+      })
+      .context("no window id found")
+  }
+
   fn update<F, R>(&mut self, f: F) -> R
   where
     F: FnOnce(&mut Self) -> R,
@@ -257,6 +319,17 @@ impl AppContext for App {
     })
   }
 
+  fn update_window<F, R>(
+    &mut self,
+    handle: AnyWindowHandle,
+    f: F,
+  ) -> anyhow::Result<R>
+  where
+    F: FnOnce(AnyView, &mut Window, &mut App) -> R,
+  {
+    self.update_window_id(handle.window_id, f)
+  }
+
   fn read_global<G, F, R>(&self, f: F) -> R
   where
     G: Global,
@@ -295,6 +368,14 @@ pub trait AppContext {
   where
     E: 'static,
     F: FnOnce(&mut E, &mut Context<E>) -> R;
+
+  fn update_window<F, R>(
+    &mut self,
+    handle: AnyWindowHandle,
+    f: F,
+  ) -> anyhow::Result<R>
+  where
+    F: FnOnce(AnyView, &mut Window, &mut App) -> R;
 
   fn read_global<G, F, R>(&self, f: F) -> R
   where

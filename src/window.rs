@@ -2,7 +2,7 @@
 
 use std::{any::TypeId, marker::PhantomData};
 
-use crate::{AnyView, App, FocusId, LayoutEngine, Rect};
+use crate::{AnyView, App, AppContext, FocusId, LayoutEngine, Rect};
 
 slotmap::new_key_type! {
   pub struct WindowId;
@@ -65,7 +65,7 @@ impl<W> WindowHandle<W> {
 #[derive(Debug)]
 #[derive(Clone, Copy)]
 pub struct AnyWindowHandle {
-  window_id: WindowId,
+  pub(crate) window_id: WindowId,
   ty_id: TypeId,
 }
 impl AnyWindowHandle {
@@ -77,6 +77,14 @@ impl AnyWindowHandle {
       window_id,
       ty_id: TypeId::of::<W>(),
     }
+  }
+
+  pub(crate) fn update<C, F, R>(self, cx: &mut C, f: F) -> anyhow::Result<R>
+  where
+    C: AppContext,
+    F: FnOnce(AnyView, &mut Window, &mut App) -> R,
+  {
+    cx.update_window(self, f)
   }
 }
 
