@@ -7,9 +7,9 @@
   </p>
 
 
-  ![rust toolchain](https://img.shields.io/badge/rust-stable-purple.svg)
+  ![rust toolchain](https://img.shields.io/badge/rust-stable_1.94.0-purple.svg)
   ![architecture](https://img.shields.io/badge/arch-arm64-purple.svg)
-  ![loc](https://img.shields.io/endpoint?url=https://ghloc.vercel.app/api/lolp1ke/dene/badge)
+  ![loc](https://img.shields.io/endpoint?url=https://ghloc.vercel.app/api/lolp1ke/dene/badge&color=purple)
 </div>
 
 ## getting started
@@ -21,7 +21,7 @@
 
 - rust
 ```sh
- # development phase started by using this specific version, any later toolchain must be fine to use
+# development phase started by using this specific version, any later toolchain must be fine to use
 rustup toolchain install 1.94.0
 ```
 
