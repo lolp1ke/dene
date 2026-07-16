@@ -2,7 +2,7 @@
 
 use crate::{
   AnyElement, AnyEntity, App, Element, Entity, IntoElement, Rect, Render,
-  Window, element,
+  Window,
 };
 
 #[derive(Debug)]
@@ -45,7 +45,7 @@ impl Element for AnyView {
   }
   fn pre_render(
     &mut self,
-    bounds: Rect,
+    _: Rect,
     request_layout: &mut Self::RequestLayoutState,
     window: &mut Window,
     cx: &mut App,
@@ -58,8 +58,8 @@ impl Element for AnyView {
   }
   fn render(
     &mut self,
-    bounds: Rect,
-    request_layout: &mut Self::RequestLayoutState,
+    _: Rect,
+    _: &mut Self::RequestLayoutState,
     pre_render: &mut Self::PreRenderState,
     window: &mut Window,
     cx: &mut App,

@@ -11,8 +11,8 @@ use taffy::AvailableSpace;
 
 use crate::{
   Action, AnyView, App, AppContext, DispatchKeystrokeResult, DispatchNodeId,
-  DispatchPhase, DispatchTree, Element, FocusId, IntoElement, KeyDownEvent,
-  KeyUpEvent, KeyboardEvent, Keystroke, LayoutEngine, NoAction, Rect, window,
+  DispatchPhase, DispatchTree, FocusHandle, FocusId, IntoElement, KeyDownEvent,
+  KeyUpEvent, KeyboardEvent, Keystroke, LayoutEngine, NoAction, Rect,
 };
 
 slotmap::new_key_type! {
@@ -129,8 +129,9 @@ impl Window {
     };
 
     // TODO: get focused node's id or else fallback to root
-    let node_id =
-      DispatchNodeId(self.current_frame.dispatch_tree.nodes.len() - 1);
+    // let node_id =
+    //   DispatchNodeId(self.current_frame.dispatch_tree.nodes.len() - 1);
+    let node_id = self.focus_in_current_frame(self.focus);
     let dispatch_path =
       &self.current_frame.dispatch_tree.dispatch_path(node_id);
 
@@ -172,6 +173,34 @@ impl Window {
         };
       },
     ));
+  }
+
+  fn focus_in_current_frame(
+    &self,
+    focus_id: Option<FocusId>,
+  ) -> DispatchNodeId {
+    focus_id
+      .and_then(|focus_id| {
+        self.current_frame.dispatch_tree.focusable_node_id(focus_id)
+      })
+      .unwrap_or_else(|| self.current_frame.dispatch_tree.root_node_id())
+  }
+  pub(crate) fn set_focus_handle(&mut self, focus_handle: &FocusHandle) {
+    if self.focus.is_none() {
+      self.focus = Some(focus_handle.id);
+    };
+
+    if self.focus == Some(focus_handle.id) {
+      self.next_frame.focus = Some(focus_handle.id);
+    };
+    self.next_frame.dispatch_tree.set_focus_id(focus_handle.id);
+  }
+  fn focus(&mut self, focus_handle: &FocusHandle) {
+    if self.focus == Some(focus_handle.id) {
+      return;
+    };
+    self.focus = Some(focus_handle.id);
+    self.dirty = true;
   }
 }
 
@@ -243,7 +272,20 @@ impl AnyWindowHandle {
 }
 
 #[derive(Debug)]
-#[derive(Default)]
 pub struct WindowOptions {
-  bounds: Rect,
+  pub bounds: Rect,
+}
+impl Default for WindowOptions {
+  fn default() -> Self {
+    let (width, height) = crate::Terminal::size();
+
+    Self {
+      bounds: Rect {
+        x: 0,
+        y: 0,
+        width,
+        height,
+      },
+    }
+  }
 }

@@ -4,7 +4,7 @@ use smallvec::SmallVec;
 
 use crate::{
   AnyElement, App, Element, InteractiveElement, Interactivity, IntoElement,
-  Rect, StyleableElement, Window,
+  ParentElement, Rect, StyleableElement, Window,
 };
 
 #[derive(Debug)]
@@ -12,11 +12,6 @@ use crate::{
 pub struct Div {
   interactivity: Interactivity,
   children: Vec<AnyElement>,
-}
-impl InteractiveElement for Div {
-  fn interactivity(&mut self) -> &mut Interactivity {
-    &mut self.interactivity
-  }
 }
 impl Element for Div {
   type RequestLayoutState = SmallVec<[taffy::NodeId; 8]>;
@@ -27,6 +22,12 @@ impl Element for Div {
     window: &mut Window,
     cx: &mut App,
   ) -> (taffy::NodeId, Self::RequestLayoutState) {
+    if self.interactivity.focusable
+      && self.interactivity.tracking_focus_handle.is_none()
+    {
+      self.interactivity.tracking_focus_handle = Some(cx.focus_handle());
+    };
+
     let child_node_ids = self
       .children
       .iter_mut()
@@ -42,11 +43,17 @@ impl Element for Div {
   }
   fn pre_render(
     &mut self,
-    bounds: Rect,
-    request_layout: &mut Self::RequestLayoutState,
+    _: Rect,
+    _: &mut Self::RequestLayoutState,
     window: &mut Window,
     cx: &mut App,
   ) -> Self::PreRenderState {
+    if let Some(focus_handle) =
+      self.interactivity.tracking_focus_handle.as_ref()
+    {
+      window.set_focus_handle(focus_handle);
+    };
+
     if matches!(self.interactivity.base_style.display, taffy::Display::None) {
       return;
     };
@@ -57,9 +64,9 @@ impl Element for Div {
   }
   fn render(
     &mut self,
-    bounds: Rect,
-    request_layout: &mut Self::RequestLayoutState,
-    pre_render: &mut Self::PreRenderState,
+    _: Rect,
+    _: &mut Self::RequestLayoutState,
+    _: &mut Self::PreRenderState,
     window: &mut Window,
     cx: &mut App,
   ) {
@@ -80,9 +87,31 @@ impl IntoElement for Div {
     self
   }
 }
+impl ParentElement for Div {
+  fn child(mut self, child: impl IntoElement) -> Self {
+    self.children.push(child.into_any_element());
+    self
+  }
+
+  fn children<I>(mut self, children: I) -> Self
+  where
+    I: IntoIterator,
+    I::Item: IntoElement,
+  {
+    self
+      .children
+      .extend(children.into_iter().map(|child| child.into_any_element()));
+    self
+  }
+}
 impl StyleableElement for Div {
   fn style(&mut self) -> &mut taffy::Style {
     &mut self.interactivity.base_style
+  }
+}
+impl InteractiveElement for Div {
+  fn interactivity(&mut self) -> &mut Interactivity {
+    &mut self.interactivity
   }
 }
 

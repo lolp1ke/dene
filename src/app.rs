@@ -3,7 +3,7 @@
 use std::{
   any::{Any, TypeId},
   cell::RefCell,
-  collections::{HashMap, VecDeque},
+  collections::VecDeque,
   rc::{self, Rc},
   sync::atomic::{self, AtomicBool},
 };
@@ -19,9 +19,9 @@ use smallvec::smallvec;
 
 use crate::{
   Action, ActionRegistry, AnyView, AnyWindowHandle, DeneInput, DispatchPhase,
-  Entity, EntityId, EntityMap, Global, KeyDownEvent, KeyUpEvent, Keybind,
-  Keybinds, Keystroke, NoAction, Quit, Render, TERM, Terminal, Window,
-  WindowHandle, WindowId, WindowOptions, get_terminal,
+  Entity, EntityId, EntityMap, FocusHandle, FocusMap, Global, KeyDownEvent,
+  KeyUpEvent, Keybind, Keybinds, Keystroke, Quit, Render, TERM, Terminal,
+  Window, WindowHandle, WindowId, WindowOptions, get_terminal,
 };
 
 #[derive(Debug)]
@@ -33,7 +33,7 @@ impl Application {
     Self { app: App::create() }
   }
 
-  pub fn run<F, R>(self, f: F) -> anyhow::Result<R>
+  pub fn run<F, R>(&self, f: F) -> anyhow::Result<R>
   where
     F: FnOnce(&mut App) -> R,
   {
@@ -80,13 +80,14 @@ pub struct App {
   pub(crate) keybinds: Rc<RefCell<Keybinds>>,
   globals_by_type: FxHashMap<TypeId, Box<dyn Any>>,
 
+  focus_map: FocusMap,
   active_window: Option<AnyWindowHandle>,
   windows: SlotMap<WindowId, Option<Box<Window>>>,
 
   #[debug(skip)]
   global_action_listeners: FxHashMap<TypeId, Vec<GlobalActionListener>>,
 
-  entities: EntityMap,
+  pub(crate) entities: EntityMap,
 
   pending_updates: u32,
   pending_effects: VecDeque<Effect>,
@@ -112,9 +113,10 @@ impl App {
       RefCell::new(Self {
         this: this.clone(),
         quitting: AtomicBool::new(false),
-        actions: Rc::new(ActionRegistry::new()),
+        actions: Default::default(),
         keybinds: Rc::new(RefCell::new(keybinds)),
         globals_by_type: Default::default(),
+        focus_map: Default::default(),
         active_window: None,
         windows: Default::default(),
         global_action_listeners: Default::default(),
@@ -380,6 +382,10 @@ impl App {
         _ => {}
       }
     }
+  }
+
+  pub fn focus_handle(&self) -> FocusHandle {
+    FocusHandle::new(&self.focus_map)
   }
 }
 impl AppContext for App {

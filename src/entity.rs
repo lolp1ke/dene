@@ -10,7 +10,7 @@ use std::{
 use parking_lot::RwLock;
 use slotmap::{SecondaryMap, SlotMap};
 
-use crate::{AppContext, Context};
+use crate::{App, AppContext, Context, FocusHandle, Focusable};
 
 slotmap::new_key_type! {
   pub struct EntityId;
@@ -39,6 +39,12 @@ impl<E> Entity<E> {
     self.any
   }
 
+  pub(crate) fn read<'a>(&self, cx: &'a App) -> &'a E
+  where
+    E: 'static,
+  {
+    cx.entities.read(self)
+  }
   pub(crate) fn update<C, F, R>(&self, cx: &mut C, f: F) -> R
   where
     C: AppContext,
@@ -54,6 +60,14 @@ impl<E> Clone for Entity<E> {
       any: self.any.clone(),
       ty: self.ty,
     }
+  }
+}
+impl<F> Focusable for Entity<F>
+where
+  F: Focusable,
+{
+  fn focus_handle(&self, cx: &App) -> FocusHandle {
+    self.read(cx).focus_handle(cx)
   }
 }
 

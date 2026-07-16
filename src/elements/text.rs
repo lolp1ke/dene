@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::{Element, IntoElement};
+use crate::{App, Element, IntoElement, Rect, Window, get_terminal};
 
 #[derive(Debug)]
 pub struct Text {
@@ -12,34 +12,69 @@ impl Element for Text {
 
   fn request_layout(
     &mut self,
-    window: &mut crate::Window,
-    cx: &mut crate::App,
+    window: &mut Window,
+    cx: &mut App,
   ) -> (taffy::NodeId, Self::RequestLayoutState) {
-    todo!();
+    let width = self.text.len() as f32;
+    let height = self.text.lines().count() as f32;
+    let mut style = taffy::Style::DEFAULT;
+    style.min_size = taffy::Size {
+      width: taffy::Dimension::length(width),
+      height: taffy::Dimension::length(height.max(1.)),
+    };
+    style.size = taffy::Size {
+      width: taffy::Dimension::length(width),
+      height: taffy::Dimension::length(height),
+    };
+    let node_id = window.request_layout(style, &[], cx);
+    (node_id, ())
   }
   fn pre_render(
     &mut self,
-    bounds: crate::Rect,
-    request_layout: &mut Self::RequestLayoutState,
-    window: &mut crate::Window,
-    cx: &mut crate::App,
+    _: Rect,
+    _: &mut Self::RequestLayoutState,
+    _: &mut Window,
+    _: &mut App,
   ) -> Self::PreRenderState {
-    todo!();
   }
   fn render(
     &mut self,
-    bounds: crate::Rect,
-    request_layout: &mut Self::RequestLayoutState,
-    pre_render: &mut Self::PreRenderState,
-    window: &mut crate::Window,
-    cx: &mut crate::App,
+    bounds: Rect,
+    _: &mut Self::RequestLayoutState,
+    _: &mut Self::PreRenderState,
+    _: &mut Window,
+    _: &mut App,
   ) {
-    todo!();
+    let lines = self.text.lines();
+    let mut terminal = get_terminal().write();
+
+    for (i, line) in lines.into_iter().enumerate() {
+      let y = bounds.y + i as u16;
+      if y >= bounds.y + bounds.height {
+        break;
+      };
+      terminal.write_at(bounds.x, y, line.as_bytes());
+    }
+    terminal.flush();
   }
 }
 impl IntoElement for Text {
   type Element = Self;
   fn into_element(self) -> Self::Element {
     self
+  }
+}
+impl IntoElement for String {
+  type Element = Text;
+  fn into_element(self) -> Self::Element {
+    Self::Element { text: self }
+  }
+}
+impl IntoElement for &'_ str {
+  type Element = Text;
+  fn into_element(self) -> Self::Element {
+    Self::Element {
+      text: self.to_string(),
+    }
   }
 }

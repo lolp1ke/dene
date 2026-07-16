@@ -93,7 +93,7 @@ impl KeybindContextPredicate {
         ("==", PRECENDENCE_EQ, Self::new_eq),
         ("!=", PRECENDENCE_NEQ, Self::new_neq),
       ] {
-        if src.starts_with(operator) {
+        if src.starts_with(operator) && precendence >= min_precendence {
           src = remove_whitespace(&src[operator.len()..]);
           let (rhs, rest) = Self::parse_expr(src, precendence)?;
           lhs = (constructor)(lhs, rhs)?;

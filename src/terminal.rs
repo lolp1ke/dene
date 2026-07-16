@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use std::{
-  io::{Stdout, stdout},
+  io::{Stdout, Write as _, stdout},
   sync::OnceLock,
 };
 
@@ -50,7 +50,15 @@ impl Terminal {
     );
     _ = execute!(self.stdout, cursor::Show, terminal::LeaveAlternateScreen);
   }
-  pub(crate) fn size(&self) -> (u16, u16) {
+  pub(crate) fn size() -> (u16, u16) {
     terminal::size().unwrap_or((0, 0))
+  }
+
+  pub(crate) fn write_at(&mut self, x: u16, y: u16, buf: &[u8]) {
+    _ = execute!(self.stdout, cursor::MoveTo(x, y));
+    _ = self.stdout.write_all(buf);
+  }
+  pub(crate) fn flush(&mut self) {
+    _ = self.stdout.flush();
   }
 }

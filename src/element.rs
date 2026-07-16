@@ -3,8 +3,8 @@
 use std::{fmt::Debug, mem};
 
 use crate::{
-  App, Context, DispatchNodeId, DispatchPhase, KeyDownEvent, KeyUpEvent, Rect,
-  Window,
+  App, Context, DispatchNodeId, DispatchPhase, FocusHandle, KeyDownEvent,
+  KeyUpEvent, Rect, Window,
 };
 
 pub trait Render: 'static + Sized {
@@ -55,9 +55,16 @@ pub trait Element: 'static + IntoElement {
     AnyElement(Box::new(DrawableObject::new(self)))
   }
 }
+pub trait ParentElement: Element {
+  fn child(self, child: impl IntoElement) -> Self;
+  fn children<I>(self, children: I) -> Self
+  where
+    I: IntoIterator,
+    I::Item: IntoElement;
+}
 
 #[derive(Debug)]
-pub struct AnyElement(Box<dyn ElementObject>);
+pub struct AnyElement(pub(crate) Box<dyn ElementObject>);
 impl AnyElement {
   pub(crate) fn request_layout(
     &mut self,
@@ -265,6 +272,11 @@ type KeyUpListener =
 #[derive(derive_more::Debug)]
 #[derive(Default)]
 pub struct Interactivity {
+  pub(crate) tracking_focus_handle: Option<FocusHandle>,
+  pub(crate) focusable: bool,
+  pub(crate) tab_index: Option<isize>,
+  pub(crate) tab_stop: bool,
+
   #[debug(skip)]
   pub(crate) base_style: taffy::Style,
 
@@ -338,6 +350,22 @@ impl Interactivity {
 pub trait InteractiveElement: Sized {
   fn interactivity(&mut self) -> &mut Interactivity;
 
+  fn track_focus(mut self, focus_handle: &FocusHandle) -> Self {
+    self.interactivity().tracking_focus_handle = Some(focus_handle.clone());
+    self.interactivity().focusable = true;
+    self
+  }
+  fn tab_index(mut self, tab_index: isize) -> Self {
+    self.interactivity().focusable = true;
+    self.interactivity().tab_index = Some(tab_index);
+    self.interactivity().tab_stop = true;
+    self
+  }
+  fn tab_stop(mut self, tab_stop: bool) -> Self {
+    self.interactivity().tab_stop = tab_stop;
+    self
+  }
+
   fn on_key_down<F>(mut self, listener: F) -> Self
   where
     F: 'static + Fn(&KeyDownEvent, &mut Window, &mut App),
@@ -403,6 +431,37 @@ pub trait StyleableElement: Sized {
   }
   fn absolute(mut self) -> Self {
     self.style().position = taffy::Position::Absolute;
+    self
+  }
+
+  fn w_auto(mut self) -> Self {
+    self.style().size.width = taffy::Dimension::auto();
+    self
+  }
+  fn h_auto(mut self) -> Self {
+    self.style().size.height = taffy::Dimension::auto();
+    self
+  }
+  fn w_full(mut self) -> Self {
+    self.style().size.width = taffy::Dimension::percent(1.);
+    self
+  }
+  fn h_full(mut self) -> Self {
+    self.style().size.height = taffy::Dimension::percent(1.);
+    self
+  }
+  fn size_auto(mut self) -> Self {
+    self.style().size = taffy::Size {
+      width: taffy::Dimension::auto(),
+      height: taffy::Dimension::auto(),
+    };
+    self
+  }
+  fn size_full(mut self) -> Self {
+    self.style().size = taffy::Size {
+      width: taffy::Dimension::percent(1.),
+      height: taffy::Dimension::percent(1.),
+    };
     self
   }
 
