@@ -1,10 +1,16 @@
 // SPDX-License-Identifier: Apache-2.0
 
-use std::{fmt::Debug, mem};
+use std::{
+  any::{Any, TypeId},
+  fmt::Debug,
+  mem,
+};
+
+use rustc_hash::FxHashMap;
 
 use crate::{
-  App, Context, DispatchNodeId, DispatchPhase, FocusHandle, KeyDownEvent,
-  KeyUpEvent, Rect, Window,
+  Action, App, Context, DispatchNodeId, DispatchPhase, FocusHandle,
+  KeyDownEvent, KeyUpEvent, Rect, Window,
 };
 
 pub trait Render: 'static + Sized {
@@ -268,6 +274,8 @@ type KeyDownListener =
   Box<dyn 'static + Fn(&KeyDownEvent, DispatchPhase, &mut Window, &mut App)>;
 type KeyUpListener =
   Box<dyn 'static + Fn(&KeyUpEvent, DispatchPhase, &mut Window, &mut App)>;
+type ActionListener =
+  Box<dyn 'static + Fn(&dyn Any, DispatchPhase, &mut Window, &mut App)>;
 
 #[derive(derive_more::Debug)]
 #[derive(Default)]
@@ -284,17 +292,23 @@ pub struct Interactivity {
   pub(crate) key_down_listener: Vec<KeyDownListener>,
   #[debug(skip)]
   pub(crate) key_up_listener: Vec<KeyUpListener>,
+  #[debug(skip)]
+  pub(crate) action_listeners: Vec<(TypeId, ActionListener)>,
 }
 impl Interactivity {
   pub(crate) fn apply_keyboard_listeners(&mut self, window: &mut Window) {
     let key_down_listeners = mem::take(&mut self.key_down_listener);
     let key_up_listeners = mem::take(&mut self.key_up_listener);
+    let action_listeners = mem::take(&mut self.action_listeners);
 
     for listener in key_down_listeners.into_iter() {
       window.on_key_event(listener);
     }
     for listener in key_up_listeners.into_iter() {
       window.on_key_event(listener);
+    }
+    for (action_ty_id, listener) in action_listeners.into_iter() {
+      window.on_action(action_ty_id, listener);
     }
   }
 
@@ -346,6 +360,22 @@ impl Interactivity {
         };
       }));
   }
+  fn on_action<F, A>(&mut self, listener: F)
+  where
+    A: Action,
+    F: 'static + Fn(&A, &mut Window, &mut App),
+  {
+    self.action_listeners.push((
+      TypeId::of::<A>(),
+      Box::new(move |action, phase, window, cx| {
+        if matches!(phase, DispatchPhase::Bubble)
+          && let Some(action) = action.downcast_ref::<A>()
+        {
+          (listener)(action, window, cx);
+        };
+      }),
+    ));
+  }
 }
 pub trait InteractiveElement: Sized {
   fn interactivity(&mut self) -> &mut Interactivity;
@@ -392,6 +422,15 @@ pub trait InteractiveElement: Sized {
     F: 'static + Fn(&KeyUpEvent, &mut Window, &mut App),
   {
     self.interactivity().capture_key_up(listener);
+    self
+  }
+
+  fn on_action<F, A>(mut self, listener: F) -> Self
+  where
+    A: Action,
+    F: 'static + Fn(&A, &mut Window, &mut App),
+  {
+    self.interactivity().on_action(listener);
     self
   }
 }
@@ -800,3 +839,22 @@ pub trait StyleableElement: Sized {
     self
   }
 }
+
+pub trait ElementExt {
+  fn map<F, U>(self, f: F) -> U
+  where
+    Self: Sized,
+    F: FnOnce(Self) -> U,
+  {
+    f(self)
+  }
+
+  fn when<F>(self, condition: bool, f: F) -> Self
+  where
+    Self: Sized,
+    F: FnOnce(Self) -> Self,
+  {
+    self.map(|this| if condition { f(this) } else { this })
+  }
+}
+impl<T> ElementExt for T where T: IntoElement {}

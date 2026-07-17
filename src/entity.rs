@@ -10,7 +10,10 @@ use std::{
 use parking_lot::RwLock;
 use slotmap::{SecondaryMap, SlotMap};
 
-use crate::{App, AppContext, Context, FocusHandle, Focusable};
+use crate::{
+  AnyElement, AnyView, App, AppContext, Context, FocusHandle, Focusable,
+  IntoElement, Render,
+};
 
 slotmap::new_key_type! {
   pub struct EntityId;
@@ -68,6 +71,16 @@ where
 {
   fn focus_handle(&self, cx: &App) -> FocusHandle {
     self.read(cx).focus_handle(cx)
+  }
+}
+impl<V> IntoElement for Entity<V>
+where
+  V: Render,
+{
+  type Element = AnyView;
+
+  fn into_element(self) -> Self::Element {
+    self.into()
   }
 }
 

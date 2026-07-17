@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use std::{
-  any::Any,
+  any::{Any, TypeId},
   cell::RefCell,
   ops::{Index, IndexMut},
   rc::Rc,
@@ -155,6 +155,16 @@ impl DispatchTree {
   pub(crate) fn on_key_event(&mut self, listener: KeyListener) {
     self.active_node().key_listeners.push(listener);
   }
+  pub(crate) fn on_action(
+    &mut self,
+    action_ty_id: TypeId,
+    listener: ActionListener,
+  ) {
+    self
+      .active_node()
+      .action_listeners
+      .push((action_ty_id, listener));
+  }
 
   fn active_node_id(&self) -> Option<DispatchNodeId> {
     self.node_stack.last().copied()
@@ -170,6 +180,8 @@ impl DispatchTree {
 }
 
 type KeyListener = Rc<dyn Fn(&dyn Any, DispatchPhase, &mut Window, &mut App)>;
+type ActionListener =
+  Rc<dyn Fn(&dyn Any, DispatchPhase, &mut Window, &mut App)>;
 #[derive(derive_more::Debug)]
 #[derive(Default)]
 pub(crate) struct DispatchNode {
@@ -177,8 +189,10 @@ pub(crate) struct DispatchNode {
   focus_id: Option<FocusId>,
   context: Option<DispatchContext>,
 
-  #[debug("key_listeners.len({})", key_listeners.len())]
+  #[debug(skip)]
   pub(crate) key_listeners: Vec<KeyListener>,
+  #[debug(skip)]
+  pub(crate) action_listeners: Vec<(TypeId, ActionListener)>,
 }
 
 #[derive(Debug)]

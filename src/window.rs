@@ -11,8 +11,9 @@ use taffy::AvailableSpace;
 
 use crate::{
   Action, AnyView, App, AppContext, DispatchKeystrokeResult, DispatchNodeId,
-  DispatchPhase, DispatchTree, FocusHandle, FocusId, IntoElement, KeyDownEvent,
-  KeyUpEvent, KeyboardEvent, Keystroke, LayoutEngine, NoAction, Rect,
+  DispatchPhase, DispatchTree, Entity, FocusHandle, FocusId, InputHandler,
+  IntoElement, KeyDownEvent, KeyUpEvent, KeyboardEvent, Keystroke,
+  LayoutEngine, NoAction, Rect,
 };
 
 slotmap::new_key_type! {
@@ -107,6 +108,11 @@ impl Window {
           .clone()
       });
 
+    let node_id = self.focus_in_current_frame(self.focus);
+    let dispatch_path =
+      &self.current_frame.dispatch_tree.dispatch_path(node_id);
+
+    let key_char = keystroke.key_char.clone();
     let pending = &self.current_frame.pending_keystrokes;
     match self
       .current_frame
@@ -119,6 +125,7 @@ impl Window {
         };
         self.current_frame.pending_keystrokes.clear();
         cx.dispatch_global_action(&*action);
+        self.dispatch_action_on_node(node_id, &*action, cx);
       }
       DispatchKeystrokeResult::Pending => {
         self.current_frame.pending_keystrokes.push(keystroke);
@@ -128,12 +135,14 @@ impl Window {
       }
     };
 
-    // TODO: get focused node's id or else fallback to root
-    // let node_id =
-    //   DispatchNodeId(self.current_frame.dispatch_tree.nodes.len() - 1);
-    let node_id = self.focus_in_current_frame(self.focus);
-    let dispatch_path =
-      &self.current_frame.dispatch_tree.dispatch_path(node_id);
+    while let Some(mut input_handler) = self.current_frame.input_handlers.pop()
+    {
+      if let Some(ch) = key_char.as_deref() {
+        input_handler.insert_str(None, ch, self, cx);
+      };
+
+      self.next_frame.input_handlers.push(input_handler);
+    }
 
     self.dispatch_key_down_up_event(event, dispatch_path, cx);
   }
@@ -160,6 +169,38 @@ impl Window {
       }
     }
   }
+  pub(crate) fn dispatch_action_on_node(
+    &mut self,
+    node_id: DispatchNodeId,
+    action: &dyn Action,
+    cx: &mut App,
+  ) {
+    let dispatch_path = self.current_frame.dispatch_tree.dispatch_path(node_id);
+
+    for node_id in dispatch_path.iter() {
+      let node = self.current_frame.dispatch_tree.node(node_id);
+
+      for (action_ty_id, listener) in node.action_listeners.clone().into_iter()
+      {
+        let any_action = action.as_any();
+        if action_ty_id == any_action.type_id() {
+          (listener)(any_action, DispatchPhase::Capture, self, cx);
+        };
+      }
+    }
+
+    for node_id in dispatch_path.iter().rev() {
+      let node = self.current_frame.dispatch_tree.node(node_id);
+
+      for (action_ty_id, listener) in node.action_listeners.clone().into_iter()
+      {
+        let any_action = action.as_any();
+        if action_ty_id == any_action.type_id() {
+          (listener)(any_action, DispatchPhase::Bubble, self, cx);
+        };
+      }
+    }
+  }
 
   pub(crate) fn on_key_event<F, KeyEvent>(&mut self, listener: F)
   where
@@ -173,6 +214,15 @@ impl Window {
         };
       },
     ));
+  }
+  pub(crate) fn on_action<F>(&mut self, action_ty_id: TypeId, listener: F)
+  where
+    F: 'static + Fn(&dyn Any, DispatchPhase, &mut Window, &mut App),
+  {
+    self
+      .next_frame
+      .dispatch_tree
+      .on_action(action_ty_id, Rc::new(listener));
   }
 
   fn focus_in_current_frame(
@@ -202,13 +252,28 @@ impl Window {
     self.focus = Some(focus_handle.id);
     self.dirty = true;
   }
+
+  pub(crate) fn listener<E, F, AnyEvent>(
+    &self,
+    view: &Entity<E>,
+    f: F,
+  ) -> impl 'static + Fn(&AnyEvent, &mut Self, &mut App)
+  where
+    E: 'static,
+    F: 'static + Fn(&mut E, &AnyEvent, &mut Self, &mut App),
+  {
+    let view = view.clone();
+    move |e, window, cx| view.update(cx, |view, cx| f(view, e, window, cx))
+  }
 }
 
-#[derive(Debug)]
+#[derive(derive_more::Debug)]
 pub(crate) struct Frame {
   focus: Option<FocusId>,
   pub(crate) dispatch_tree: DispatchTree,
   pub(crate) pending_keystrokes: SmallVec<[Keystroke; 2]>,
+  #[debug(skip)]
+  pub(crate) input_handlers: Vec<Box<dyn InputHandler>>,
 }
 impl Frame {
   pub(crate) fn new(dispatch_tree: DispatchTree) -> Self {
@@ -216,11 +281,13 @@ impl Frame {
       focus: None,
       dispatch_tree,
       pending_keystrokes: Default::default(),
+      input_handlers: Default::default(),
     }
   }
 
   pub(crate) fn clear(&mut self) {
     self.dispatch_tree.clear();
+    self.input_handlers.clear();
   }
 }
 

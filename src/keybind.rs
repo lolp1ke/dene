@@ -37,9 +37,9 @@ impl Keybinds {
 
 #[derive(Debug)]
 pub struct Keybind {
-  pub(crate) action: Box<dyn Action>,
-  pub(crate) keystrokes: SmallVec<[Keystroke; 2]>,
-  pub(crate) key_context: Option<Rc<KeybindContextPredicate>>,
+  pub action: Box<dyn Action>,
+  pub keystrokes: SmallVec<[Keystroke; 2]>,
+  pub key_context: Option<Rc<KeybindContextPredicate>>,
 }
 impl Keybind {
   fn match_keystrokes(&self, input: &[&Keystroke]) -> bool {
@@ -152,9 +152,9 @@ impl KeybindContextPredicate {
 #[derive(Debug)]
 #[derive(Clone)]
 pub struct Keystroke {
-  modifiers: Modifiers,
-  key: Arc<str>,
-  key_char: Option<Arc<str>>,
+  pub(crate) modifiers: Modifiers,
+  pub(crate) key: Arc<str>,
+  pub(crate) key_char: Option<Arc<str>>,
 }
 impl Keystroke {
   pub fn parse(source: &str) -> anyhow::Result<Self> {

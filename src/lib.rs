@@ -5,7 +5,7 @@ pub mod app;
 pub(crate) mod dispatch;
 pub mod element;
 pub mod elements;
-pub(crate) mod entity;
+pub mod entity;
 pub mod focus;
 pub(crate) mod geometry;
 pub(crate) mod global;

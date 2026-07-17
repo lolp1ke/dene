@@ -1,23 +1,35 @@
 // SPDX-License-Identifier: Apache-2.0
 
+use std::rc::Rc;
+
 use dene::{
   app::{App, AppContext, Application, Context},
   element::{
     InteractiveElement, IntoElement, ParentElement, Render, StyleableElement,
   },
-  elements::div,
+  elements::{Delete, Input, InputState, div},
+  entity::Entity,
   focus::{FocusHandle, Focusable},
+  keybind::{Keybind, KeybindContextPredicate, Keystroke},
   window::Window,
 };
+use ropey::Rope;
+use smallvec::smallvec;
 
 fn main() {
   let app = Application::default();
 
   _ = app.run(|cx| {
     cx.open_window(Default::default(), |_window, cx| {
-      cx.new_entity(|cx| HelloWorld {
-        focus_handle: cx.focus_handle(),
-      })
+      cx.new_entity(HelloWorld::new)
+    });
+
+    cx.bind_key(Keybind {
+      action: Box::new(Delete),
+      keystrokes: smallvec![Keystroke::parse("delete").unwrap()],
+      key_context: Some(Rc::new(KeybindContextPredicate::Ident(
+        "input".into(),
+      ))),
     });
   });
 
@@ -27,6 +39,24 @@ fn main() {
 
 struct HelloWorld {
   focus_handle: FocusHandle,
+  input: Entity<Input>,
+}
+impl HelloWorld {
+  fn new(cx: &mut Context<Self>) -> Self {
+    let input = cx.new_entity(|cx| Input {
+      state: cx.new_entity(|cx| InputState {
+        focus_handle: cx.focus_handle(),
+        text: Rope::new(),
+        placeholder: None,
+        disabled: false,
+      }),
+    });
+
+    Self {
+      focus_handle: cx.focus_handle(),
+      input,
+    }
+  }
 }
 impl Render for HelloWorld {
   fn render(
@@ -54,6 +84,7 @@ impl Render for HelloWorld {
           .child("one")
           .child("piece"),
       )
+      .child(self.input.clone())
   }
 }
 impl Focusable for HelloWorld {

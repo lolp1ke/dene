@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 
-use std::any::Any;
+use std::{any::Any, ops::Range};
 
-use crate::Keystroke;
+use crate::{App, Keystroke, Window};
 
 pub(crate) trait InputEvent: 'static {
   fn to_dene_input(self) -> DeneInput;
@@ -55,3 +55,18 @@ impl InputEvent for KeyUpEvent {
   }
 }
 impl KeyboardEvent for KeyUpEvent {}
+
+pub trait InputHandler {
+  fn insert_str(
+    &mut self,
+    range: Option<Range<usize>>,
+    str: &str,
+    window: &mut Window,
+    cx: &mut App,
+  );
+  fn selected_text(
+    &mut self,
+    window: &mut Window,
+    cx: &mut App,
+  ) -> Option<(Range<usize>, bool)>;
+}

@@ -128,6 +128,16 @@ impl App {
     })
   }
 
+  pub fn bind_key(&mut self, keybind: Keybind) {
+    self.keybinds.borrow_mut().0.push(keybind);
+  }
+  pub fn bind_keys<I>(&mut self, keybinds: I)
+  where
+    I: IntoIterator<Item = Keybind>,
+  {
+    self.keybinds.borrow_mut().0.extend(keybinds);
+  }
+
   pub fn open_window<F, V>(
     &mut self,
     window_options: WindowOptions,
@@ -227,8 +237,9 @@ impl App {
       term_event::KeyCode::Right => keystroke.push_str("right"),
       term_event::KeyCode::Up => keystroke.push_str("up"),
       term_event::KeyCode::Down => keystroke.push_str("down"),
-      term_event::KeyCode::BackTab => keystroke.push_str("tab"),
       term_event::KeyCode::Tab => keystroke.push_str("tab"),
+      term_event::KeyCode::BackTab => keystroke.push_str("tab"),
+      term_event::KeyCode::Delete => keystroke.push_str("delete"),
       term_event::KeyCode::F(f) => {
         keystroke.push('f');
         if f < 10 {
