@@ -4,7 +4,7 @@ use smallvec::SmallVec;
 
 use crate::{
   AnyElement, App, Element, InteractiveElement, Interactivity, IntoElement,
-  ParentElement, Rect, StyleableElement, Window,
+  ParentElement, Rect, StyleableElement, Window, get_terminal,
 };
 
 #[derive(Debug)]
@@ -64,7 +64,7 @@ impl Element for Div {
   }
   fn render(
     &mut self,
-    _: Rect,
+    bounds: Rect,
     _: &mut Self::RequestLayoutState,
     _: &mut Self::PreRenderState,
     window: &mut Window,
@@ -73,6 +73,9 @@ impl Element for Div {
     if matches!(self.interactivity.base_style.display, taffy::Display::None) {
       return;
     };
+
+    let border = self.interactivity.base_style.border;
+    draw_border(bounds, border);
 
     self.interactivity.apply_keyboard_listeners(window);
     for child in self.children.iter_mut() {
@@ -117,4 +120,73 @@ impl InteractiveElement for Div {
 
 pub fn div() -> Div {
   Default::default()
+}
+
+fn draw_border(bounds: Rect, border: taffy::Rect<taffy::LengthPercentage>) {
+  let bl = border.left.into_raw().value() as u16;
+  let br = border.right.into_raw().value() as u16;
+  let bt = border.top.into_raw().value() as u16;
+  let bb = border.bottom.into_raw().value() as u16;
+
+  if (bl | br | bt | bb) == 0 {
+    return;
+  };
+  let mut terminal = get_terminal().write();
+
+  let left = bounds.x;
+  let right = bounds.x + bounds.width - 1;
+  let top = bounds.y;
+  let bottom = bounds.y + bounds.height - 1;
+
+  if bl > 0 {
+    let y_start = top + bt;
+    let y_end = bottom - bb;
+    if y_start <= y_end {
+      for y in y_start..=y_end {
+        terminal.write_at(left, y, "│".as_bytes());
+      }
+    };
+  };
+  if br > 0 {
+    let y_start = top + bt;
+    let y_end = bottom - bb;
+    if y_start <= y_end {
+      for y in y_start..=y_end {
+        terminal.write_at(right, y, "│".as_bytes());
+      }
+    };
+  };
+  if bt > 0 {
+    let y = top;
+    if bl > 0 {
+      terminal.write_at(left, y, "┌".as_bytes());
+    };
+    let x_start = left + bl;
+    let x_end = right - br;
+    if x_start <= x_end {
+      let line = "─".repeat((x_end - x_start + 1) as usize);
+      terminal.write_at(x_start, y, line.as_bytes());
+    };
+    if br > 0 {
+      terminal.write_at(right, y, "┐".as_bytes());
+    };
+  };
+  if bb > 0 {
+    let y = bottom;
+
+    if bl > 0 {
+      terminal.write_at(left, y, "└".as_bytes());
+    };
+    let x_start = left + bl;
+    let x_end = right - br;
+    if x_start <= x_end {
+      let line = "─".repeat((x_end - x_start + 1) as usize);
+      terminal.write_at(x_start, y, line.as_bytes());
+    };
+    if br > 0 {
+      terminal.write_at(right, y, "┘".as_bytes());
+    };
+  };
+
+  terminal.flush();
 }

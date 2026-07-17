@@ -81,3 +81,6 @@ pub(crate) struct FocusRef {
   pub(crate) tab_index: isize,
   pub(crate) tab_stop: bool,
 }
+
+#[derive(Debug)]
+pub(crate) struct FocusTabStopMap {}

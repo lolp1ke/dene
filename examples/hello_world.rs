@@ -67,9 +67,6 @@ impl Render for HelloWorld {
     div()
       .size_full()
       .track_focus(&self.focus_handle)
-      .on_key_down(|_, _, _| {
-        println!("PRESS DETECTED");
-      })
       .flex()
       .flex_col()
       .gap_y(10.)
@@ -81,6 +78,7 @@ impl Render for HelloWorld {
           .flex()
           .flex_row()
           .gap_x(5.)
+          .border(1.)
           .child("one")
           .child("piece"),
       )

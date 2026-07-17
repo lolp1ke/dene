@@ -5,7 +5,7 @@ use std::{
   sync::OnceLock,
 };
 
-use crossterm::{cursor, event, execute, terminal};
+use crossterm::{cursor, event, execute, queue, style, terminal};
 use parking_lot::RwLock;
 
 pub(crate) static TERM: OnceLock<RwLock<Terminal>> = OnceLock::new();
@@ -55,7 +55,7 @@ impl Terminal {
   }
 
   pub(crate) fn write_at(&mut self, x: u16, y: u16, buf: &[u8]) {
-    _ = execute!(self.stdout, cursor::MoveTo(x, y));
+    _ = queue!(self.stdout, cursor::MoveTo(x, y));
     _ = self.stdout.write_all(buf);
   }
   pub(crate) fn flush(&mut self) {

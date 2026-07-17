@@ -252,6 +252,7 @@ impl Window {
     self.focus = Some(focus_handle.id);
     self.dirty = true;
   }
+  fn focus_prev(&mut self) {}
 
   pub(crate) fn listener<E, F, AnyEvent>(
     &self,
