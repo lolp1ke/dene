@@ -36,6 +36,7 @@ impl Render for Input {
 
     div()
       .track_focus(&state.focus_handle)
+      .tab_stop(true)
       .when(!state.disabled, |this| {
         this.on_action(window.listener(&self.state, InputState::delete))
       })

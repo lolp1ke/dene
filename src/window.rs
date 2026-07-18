@@ -11,9 +11,9 @@ use taffy::AvailableSpace;
 
 use crate::{
   Action, AnyView, App, AppContext, DispatchKeystrokeResult, DispatchNodeId,
-  DispatchPhase, DispatchTree, Entity, FocusHandle, FocusId, InputHandler,
-  IntoElement, KeyDownEvent, KeyUpEvent, KeyboardEvent, Keystroke,
-  LayoutEngine, NoAction, Rect,
+  DispatchPhase, DispatchTree, Entity, FocusHandle, FocusId, FocusTabStopMap,
+  InputHandler, IntoElement, KeyDownEvent, KeyUpEvent, KeyboardEvent,
+  Keystroke, LayoutEngine, NoAction, Rect,
 };
 
 slotmap::new_key_type! {
@@ -252,7 +252,38 @@ impl Window {
     self.focus = Some(focus_handle.id);
     self.dirty = true;
   }
-  fn focus_prev(&mut self) {}
+  pub(crate) fn focus_next(&mut self) {
+    if let Some(handle) =
+      self.current_frame.tab_stop_map.next(self.focus.as_ref())
+    {
+      self.focus(&handle);
+    };
+  }
+  pub(crate) fn focus_prev(&mut self) {
+    if let Some(handle) =
+      self.current_frame.tab_stop_map.prev(self.focus.as_ref())
+    {
+      self.focus(&handle);
+    }
+  }
+
+  pub(crate) fn with_tab_group<F, R>(
+    &mut self,
+    tab_index: Option<isize>,
+    f: F,
+  ) -> R
+  where
+    F: FnOnce(&mut Self) -> R,
+  {
+    if let Some(tab_index) = tab_index {
+      self.next_frame.tab_stop_map.start_group(tab_index);
+      let result = f(self);
+      self.next_frame.tab_stop_map.end_group();
+      result
+    } else {
+      f(self)
+    }
+  }
 
   pub(crate) fn listener<E, F, AnyEvent>(
     &self,
@@ -275,6 +306,7 @@ pub(crate) struct Frame {
   pub(crate) pending_keystrokes: SmallVec<[Keystroke; 2]>,
   #[debug(skip)]
   pub(crate) input_handlers: Vec<Box<dyn InputHandler>>,
+  pub(crate) tab_stop_map: FocusTabStopMap,
 }
 impl Frame {
   pub(crate) fn new(dispatch_tree: DispatchTree) -> Self {
@@ -283,12 +315,15 @@ impl Frame {
       dispatch_tree,
       pending_keystrokes: Default::default(),
       input_handlers: Default::default(),
+      tab_stop_map: Default::default(),
     }
   }
 
   pub(crate) fn clear(&mut self) {
     self.dispatch_tree.clear();
     self.input_handlers.clear();
+    self.tab_stop_map.clear();
+    // self.focus = None;
   }
 }
 

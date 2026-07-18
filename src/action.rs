@@ -108,7 +108,9 @@ actions! {
   [
     Quit,
     NoAction,
-    ]
+    FocusNext,
+    FocusPrev,
+  ]
 }
 
 pub struct MacroActionBuilder(pub fn() -> MacroActionData);

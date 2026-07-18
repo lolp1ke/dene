@@ -6,11 +6,9 @@ use std::{
   mem,
 };
 
-use rustc_hash::FxHashMap;
-
 use crate::{
-  Action, App, Context, DispatchNodeId, DispatchPhase, FocusHandle,
-  KeyDownEvent, KeyUpEvent, Rect, Window,
+  Action, App, Context, DispatchNodeId, DispatchPhase, FocusHandle, FocusNext,
+  FocusPrev, KeyDownEvent, KeyUpEvent, Rect, Window,
 };
 
 pub trait Render: 'static + Sized {
@@ -310,6 +308,13 @@ impl Interactivity {
     for (action_ty_id, listener) in action_listeners.into_iter() {
       window.on_action(action_ty_id, listener);
     }
+
+    window.on_action(FocusNext.type_id(), |_, _, window, _| {
+      window.focus_next();
+    });
+    window.on_action(FocusPrev.type_id(), |_, _, window, _| {
+      window.focus_prev();
+    });
   }
 
   fn on_key_down<F>(&mut self, listener: F)

@@ -3,7 +3,21 @@
 [package]
 name = "dene"
 version = "0.1.0"
+authors = ["Alibek<freed.alibek@gmail.com>"]
 edition = "2024"
+rust-version = "1.94.0"
+description = "powerful and blazingly fast terminal user interface library."
+readme = "README.md"
+homepage = "https://codeberg.org/lolp1ke/dene"
+repository = "https://codeberg.org/lolp1ke/dene"
+license = "Apache-2.0"
+# keywords = []
+# categories = []
+# exclude = []
+# include = []
+
+[badges]
+maintenance = { status = "actively-developed" }
 
 [features]
 default = ["crossterm", "derive_more", "rustc-hash", "taffy", "tokio", "toml"]

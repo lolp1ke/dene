@@ -19,9 +19,9 @@ use smallvec::smallvec;
 
 use crate::{
   Action, ActionRegistry, AnyView, AnyWindowHandle, DeneInput, DispatchPhase,
-  Entity, EntityId, EntityMap, FocusHandle, FocusMap, Global, KeyDownEvent,
-  KeyUpEvent, Keybind, Keybinds, Keystroke, Quit, Render, TERM, Terminal,
-  Window, WindowHandle, WindowId, WindowOptions, get_terminal,
+  Entity, EntityId, EntityMap, FocusHandle, FocusMap, FocusNext, FocusPrev,
+  Global, KeyDownEvent, KeyUpEvent, Keybind, Keybinds, Keystroke, Quit, Render,
+  TERM, Terminal, Window, WindowHandle, WindowId, WindowOptions, get_terminal,
 };
 
 #[derive(Debug)]
@@ -100,14 +100,26 @@ impl App {
       .expect("failed to init terminal");
 
     let mut keybinds = Keybinds(Vec::new());
-    keybinds.push(Keybind {
-      action: Box::new(Quit),
-      keystrokes: smallvec![
-        Keystroke::parse("ctrl-;").unwrap(),
-        Keystroke::parse("ctrl-q").unwrap()
-      ],
-      key_context: None,
-    });
+    keybinds.extend([
+      Keybind {
+        action: Box::new(Quit),
+        keystrokes: smallvec![
+          Keystroke::parse("ctrl-;").unwrap(),
+          Keystroke::parse("ctrl-q").unwrap()
+        ],
+        key_context: None,
+      },
+      Keybind {
+        action: Box::new(FocusNext),
+        keystrokes: smallvec![Keystroke::parse("tab").unwrap()],
+        key_context: None,
+      },
+      Keybind {
+        action: Box::new(FocusPrev),
+        keystrokes: smallvec![Keystroke::parse("shift-tab").unwrap()],
+        key_context: None,
+      },
+    ]);
 
     Rc::new_cyclic(|this| {
       RefCell::new(Self {

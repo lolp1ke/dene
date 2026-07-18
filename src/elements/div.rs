@@ -25,7 +25,12 @@ impl Element for Div {
     if self.interactivity.focusable
       && self.interactivity.tracking_focus_handle.is_none()
     {
-      self.interactivity.tracking_focus_handle = Some(cx.focus_handle());
+      let mut focus_handle = cx.focus_handle();
+      if let Some(tab_index) = self.interactivity.tab_index {
+        focus_handle.tab_index(tab_index);
+      };
+      focus_handle.tab_stop(self.interactivity.tab_stop);
+      self.interactivity.tracking_focus_handle = Some(focus_handle);
     };
 
     let child_node_ids = self
@@ -74,13 +79,27 @@ impl Element for Div {
       return;
     };
 
+    let mut tab_index = None;
+    if self.interactivity.tab_stop {
+      tab_index = self.interactivity.tab_index;
+    };
+    if let Some(focus_handle) =
+      self.interactivity.tracking_focus_handle.as_mut()
+    {
+      focus_handle.tab_index(self.interactivity.tab_index.unwrap_or(0));
+      focus_handle.tab_stop(self.interactivity.tab_stop);
+      window.next_frame.tab_stop_map.insert(focus_handle);
+    };
+
+    window.with_tab_group(tab_index, |window| {
+      self.interactivity.apply_keyboard_listeners(window);
+      for child in self.children.iter_mut() {
+        child.render(window, cx);
+      }
+    });
+
     let border = self.interactivity.base_style.border;
     draw_border(bounds, border);
-
-    self.interactivity.apply_keyboard_listeners(window);
-    for child in self.children.iter_mut() {
-      child.render(window, cx);
-    }
   }
 }
 impl IntoElement for Div {
