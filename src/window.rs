@@ -97,30 +97,32 @@ impl Window {
       self.render(cx);
     };
 
-    let keystroke = event
-      .downcast_ref::<KeyDownEvent>()
-      .map(|e| e.keystroke.clone())
-      .unwrap_or_else(|| {
-        event
-          .downcast_ref::<KeyUpEvent>()
-          .unwrap()
-          .keystroke
-          .clone()
-      });
+    // let keystroke = event
+    //   .downcast_ref::<KeyDownEvent>()
+    //   .map(|e| e.keystroke.clone())
+    //   .unwrap_or_else(|| {
+    //     event
+    //       .downcast_ref::<KeyUpEvent>()
+    //       .unwrap()
+    //       .keystroke
+    //       .clone()
+    //   });
 
     let node_id = self.focus_in_current_frame(self.focus);
     let dispatch_path =
       &self.current_frame.dispatch_tree.dispatch_path(node_id);
 
-    if event.downcast_ref::<KeyDownEvent>().is_some() {
+    if let Some(KeyDownEvent { keystroke, is_held }) =
+      event.downcast_ref::<KeyDownEvent>()
+    {
       cx.propagate_event = true;
       let key_char = keystroke.key_char.clone();
-      let modifiers = keystroke.modifiers.clone();
+      let modifiers = keystroke.modifiers;
       let pending = &self.current_frame.pending_keystrokes;
       match self
         .current_frame
         .dispatch_tree
-        .dispatch_keystroke(pending, &keystroke)
+        .dispatch_keystroke(pending, keystroke)
       {
         DispatchKeystrokeResult::Match(action) => {
           if action.partial_eq(&NoAction as &dyn Action) {
@@ -130,24 +132,26 @@ impl Window {
           self.dispatch_action_on_node(node_id, &*action, cx);
         }
         DispatchKeystrokeResult::Pending => {
-          self.current_frame.pending_keystrokes.push(keystroke);
+          self
+            .current_frame
+            .pending_keystrokes
+            .push(keystroke.clone());
         }
         DispatchKeystrokeResult::Nope => {
           self.current_frame.pending_keystrokes.clear();
         }
       };
 
-      while let Some(mut input_handler) =
-        self.current_frame.input_handlers.pop()
-      {
+      let mut input_handlers =
+        std::mem::take(&mut self.current_frame.input_handlers);
+      for input_handler in input_handlers.iter_mut() {
         if !modifiers.intersects(Modifiers::CONTROL)
-          && let Some(ch) = key_char.as_deref()
+          && let Some(chars) = key_char.as_deref()
         {
-          input_handler.insert_str(None, ch, self, cx);
+          input_handler.insert_str(None, chars, self, cx);
         };
-
-        self.next_frame.input_handlers.push(input_handler);
       }
+      self.current_frame.input_handlers.extend(input_handlers);
     };
 
     self.dispatch_key_down_up_event(event, dispatch_path, cx);
@@ -325,6 +329,7 @@ impl Window {
     H: InputHandler,
   {
     if focus_handle.is_focused(self) {
+      self.next_frame.input_handlers.clear();
       self.next_frame.input_handlers.push(Box::new(input_handler));
     };
   }
