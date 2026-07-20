@@ -85,7 +85,9 @@ pub struct App {
   windows: SlotMap<WindowId, Option<Box<Window>>>,
 
   #[debug(skip)]
-  global_action_listeners: FxHashMap<TypeId, Vec<GlobalActionListener>>,
+  pub(crate) global_action_listeners:
+    FxHashMap<TypeId, Vec<GlobalActionListener>>,
+  pub(crate) propagate_event: bool,
 
   pub(crate) entities: EntityMap,
 
@@ -132,6 +134,7 @@ impl App {
         active_window: None,
         windows: Default::default(),
         global_action_listeners: Default::default(),
+        propagate_event: true,
         entities: Default::default(),
         pending_updates: 0,
         pending_effects: Default::default(),

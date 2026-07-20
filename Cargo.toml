@@ -11,10 +11,11 @@ readme = "README.md"
 homepage = "https://codeberg.org/lolp1ke/dene"
 repository = "https://codeberg.org/lolp1ke/dene"
 license = "Apache-2.0"
-# keywords = []
-# categories = []
-# exclude = []
-# include = []
+keywords = ["tui", "terminal"]
+categories = ["command-line-interface", "gui"]
+exclude = ["*.log"]
+include = ["LICENSE-APACHE", "**/*.rs", "Cargo.toml"]
+# publish = true
 
 [badges]
 maintenance = { status = "actively-developed" }

@@ -13,7 +13,7 @@ use rustc_hash::FxHashMap;
 use slotmap::SlotMap;
 use smallvec::SmallVec;
 
-use crate::App;
+use crate::{App, Window};
 
 slotmap::new_key_type! {
   pub(crate) struct FocusId;
@@ -57,6 +57,10 @@ impl FocusHandle {
       focus_ref.tab_stop = tab_stop;
     }
     self.tab_stop = tab_stop;
+  }
+
+  pub(crate) fn is_focused(&self, window: &Window) -> bool {
+    window.focus == Some(self.id)
   }
 }
 impl Clone for FocusHandle {
@@ -194,9 +198,11 @@ impl FocusTabStopMap {
 
   fn _next(&self, node: &TabStopNode) -> Option<&TabStopNode> {
     self.order.range(node..).skip(1).find(|node| node.tab_stop)
+    // self.order.range(node..).skip(1).next()
   }
   fn _prev(&self, node: &TabStopNode) -> Option<&TabStopNode> {
     self.order.range(..node).rev().find(|node| node.tab_stop)
+    // self.order.range(..node).rev().next()
   }
 
   fn tab_node_for_focus_id(

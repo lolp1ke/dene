@@ -42,13 +42,13 @@ impl<E> Entity<E> {
     self.any
   }
 
-  pub(crate) fn read<'a>(&self, cx: &'a App) -> &'a E
+  pub fn read<'a>(&self, cx: &'a App) -> &'a E
   where
     E: 'static,
   {
     cx.entities.read(self)
   }
-  pub(crate) fn update<C, F, R>(&self, cx: &mut C, f: F) -> R
+  pub fn update<C, F, R>(&self, cx: &mut C, f: F) -> R
   where
     C: AppContext,
     F: FnOnce(&mut E, &mut Context<E>) -> R,

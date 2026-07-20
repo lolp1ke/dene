@@ -42,6 +42,24 @@ pub struct Keybind {
   pub key_context: Option<Rc<KeybindContextPredicate>>,
 }
 impl Keybind {
+  pub(crate) fn new<A, I>(
+    action: A,
+    keystrokes: I,
+    key_context: Option<&str>,
+  ) -> Self
+  where
+    A: Action,
+    I: IntoIterator<Item = anyhow::Result<Keystroke>>,
+  {
+    Self {
+      action: Box::new(action),
+      // TODO: send warning
+      keystrokes: keystrokes.into_iter().flatten().collect(),
+      key_context: key_context
+        .map(KeybindContextPredicate::parse)
+        .and_then(|k| k.map(Rc::new).ok()),
+    }
+  }
   fn match_keystrokes(&self, input: &[&Keystroke]) -> bool {
     if input.len() > self.keystrokes.len() {
       return false;
@@ -57,6 +75,7 @@ impl Keybind {
 }
 
 #[derive(Debug)]
+#[derive(Clone)]
 pub enum KeybindContextPredicate {
   Ident(Arc<str>),
   Eq(Arc<str>, Arc<str>),
@@ -66,7 +85,7 @@ pub enum KeybindContextPredicate {
   Or(Box<Self>, Box<Self>),
 }
 impl KeybindContextPredicate {
-  fn parse(src: &str) -> anyhow::Result<Self> {
+  pub(crate) fn parse(src: &str) -> anyhow::Result<Self> {
     let src = remove_whitespace(src);
     let (this, rest) = Self::parse_expr(src, 0)?;
     if !rest.is_empty() {

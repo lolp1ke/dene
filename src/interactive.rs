@@ -2,7 +2,7 @@
 
 use std::{any::Any, ops::Range};
 
-use crate::{App, Keystroke, Window};
+use crate::{App, Entity, Keystroke, Window};
 
 pub(crate) trait InputEvent: 'static {
   fn to_dene_input(self) -> DeneInput;
@@ -56,7 +56,7 @@ impl InputEvent for KeyUpEvent {
 }
 impl KeyboardEvent for KeyUpEvent {}
 
-pub trait InputHandler {
+pub trait InputHandler: 'static {
   fn insert_str(
     &mut self,
     range: Option<Range<usize>>,
@@ -69,4 +69,27 @@ pub trait InputHandler {
     window: &mut Window,
     cx: &mut App,
   ) -> Option<(Range<usize>, bool)>;
+}
+impl<V> InputHandler for Entity<V>
+where
+  V: InputHandler,
+{
+  fn insert_str(
+    &mut self,
+    range: Option<Range<usize>>,
+    str: &str,
+    window: &mut Window,
+    cx: &mut App,
+  ) {
+    self.update(cx, |this, cx| {
+      this.insert_str(range, str, window, cx);
+    });
+  }
+  fn selected_text(
+    &mut self,
+    window: &mut Window,
+    cx: &mut App,
+  ) -> Option<(Range<usize>, bool)> {
+    self.update(cx, |this, cx| this.selected_text(window, cx))
+  }
 }

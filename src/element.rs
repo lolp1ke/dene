@@ -309,11 +309,13 @@ impl Interactivity {
       window.on_action(action_ty_id, listener);
     }
 
-    window.on_action(FocusNext.type_id(), |_, _, window, _| {
+    window.on_action(FocusNext.type_id(), |_, _, window, cx| {
       window.focus_next();
+      cx.propagate_event = false;
     });
-    window.on_action(FocusPrev.type_id(), |_, _, window, _| {
+    window.on_action(FocusPrev.type_id(), |_, _, window, cx| {
       window.focus_prev();
+      cx.propagate_event = false;
     });
   }
 

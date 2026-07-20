@@ -1,20 +1,15 @@
 // SPDX-License-Identifier: Apache-2.0
 
-use std::rc::Rc;
-
 use dene::{
   app::{App, AppContext, Application, Context},
   element::{
     InteractiveElement, IntoElement, ParentElement, Render, StyleableElement,
   },
-  elements::{Delete, Input, InputState, div},
+  elements::{Input, div, input},
   entity::Entity,
   focus::{FocusHandle, Focusable},
-  keybind::{Keybind, KeybindContextPredicate, Keystroke},
   window::Window,
 };
-use ropey::Rope;
-use smallvec::smallvec;
 
 fn main() {
   let app = Application::default();
@@ -22,14 +17,6 @@ fn main() {
   _ = app.run(|cx| {
     cx.open_window(Default::default(), |_window, cx| {
       cx.new_entity(HelloWorld::new)
-    });
-
-    cx.bind_key(Keybind {
-      action: Box::new(Delete),
-      keystrokes: smallvec![Keystroke::parse("delete").unwrap()],
-      key_context: Some(Rc::new(KeybindContextPredicate::Ident(
-        "input".into(),
-      ))),
     });
   });
 
@@ -43,14 +30,7 @@ struct HelloWorld {
 }
 impl HelloWorld {
   fn new(cx: &mut Context<Self>) -> Self {
-    let input = cx.new_entity(|cx| Input {
-      state: cx.new_entity(|cx| InputState {
-        focus_handle: cx.focus_handle(),
-        text: Rope::new(),
-        placeholder: None,
-        disabled: false,
-      }),
-    });
+    let input = input(cx);
 
     Self {
       focus_handle: cx.focus_handle(),
@@ -61,12 +41,16 @@ impl HelloWorld {
 impl Render for HelloWorld {
   fn render(
     &mut self,
-    _window: &mut Window,
-    _cx: &mut Context<Self>,
+    window: &mut Window,
+    cx: &mut Context<Self>,
   ) -> impl IntoElement {
+    let input = self.input.clone();
+    window.handle_input(&input.focus_handle(cx), input);
+
     div()
       .size_full()
       .track_focus(&self.focus_handle)
+      .tab_stop(true)
       .flex()
       .flex_col()
       .gap_y(10.)

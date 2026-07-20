@@ -13,7 +13,7 @@ use crate::{
   Action, AnyView, App, AppContext, DispatchKeystrokeResult, DispatchNodeId,
   DispatchPhase, DispatchTree, Entity, FocusHandle, FocusId, FocusTabStopMap,
   InputHandler, IntoElement, KeyDownEvent, KeyUpEvent, KeyboardEvent,
-  Keystroke, LayoutEngine, NoAction, Rect,
+  Keystroke, LayoutEngine, Modifiers, NoAction, Rect,
 };
 
 slotmap::new_key_type! {
@@ -112,37 +112,43 @@ impl Window {
     let dispatch_path =
       &self.current_frame.dispatch_tree.dispatch_path(node_id);
 
-    let key_char = keystroke.key_char.clone();
-    let pending = &self.current_frame.pending_keystrokes;
-    match self
-      .current_frame
-      .dispatch_tree
-      .dispatch_keystroke(pending, &keystroke)
-    {
-      DispatchKeystrokeResult::Match(action) => {
-        if action.partial_eq(&NoAction as &dyn Action) {
-          return;
-        };
-        self.current_frame.pending_keystrokes.clear();
-        cx.dispatch_global_action(&*action);
-        self.dispatch_action_on_node(node_id, &*action, cx);
-      }
-      DispatchKeystrokeResult::Pending => {
-        self.current_frame.pending_keystrokes.push(keystroke);
-      }
-      DispatchKeystrokeResult::Nope => {
-        self.current_frame.pending_keystrokes.clear();
-      }
-    };
-
-    while let Some(mut input_handler) = self.current_frame.input_handlers.pop()
-    {
-      if let Some(ch) = key_char.as_deref() {
-        input_handler.insert_str(None, ch, self, cx);
+    if event.downcast_ref::<KeyDownEvent>().is_some() {
+      cx.propagate_event = true;
+      let key_char = keystroke.key_char.clone();
+      let modifiers = keystroke.modifiers.clone();
+      let pending = &self.current_frame.pending_keystrokes;
+      match self
+        .current_frame
+        .dispatch_tree
+        .dispatch_keystroke(pending, &keystroke)
+      {
+        DispatchKeystrokeResult::Match(action) => {
+          if action.partial_eq(&NoAction as &dyn Action) {
+            return;
+          };
+          self.current_frame.pending_keystrokes.clear();
+          self.dispatch_action_on_node(node_id, &*action, cx);
+        }
+        DispatchKeystrokeResult::Pending => {
+          self.current_frame.pending_keystrokes.push(keystroke);
+        }
+        DispatchKeystrokeResult::Nope => {
+          self.current_frame.pending_keystrokes.clear();
+        }
       };
 
-      self.next_frame.input_handlers.push(input_handler);
-    }
+      while let Some(mut input_handler) =
+        self.current_frame.input_handlers.pop()
+      {
+        if !modifiers.intersects(Modifiers::CONTROL)
+          && let Some(ch) = key_char.as_deref()
+        {
+          input_handler.insert_str(None, ch, self, cx);
+        };
+
+        self.next_frame.input_handlers.push(input_handler);
+      }
+    };
 
     self.dispatch_key_down_up_event(event, dispatch_path, cx);
   }
@@ -177,6 +183,26 @@ impl Window {
   ) {
     let dispatch_path = self.current_frame.dispatch_tree.dispatch_path(node_id);
 
+    cx.propagate_event = true;
+    if let Some(global_action_listeners) = cx
+      .global_action_listeners
+      .remove(&action.as_any().type_id())
+    {
+      for listener in global_action_listeners.iter() {
+        (listener)(action, DispatchPhase::Capture, cx);
+        if !cx.propagate_event {
+          break;
+        };
+      }
+
+      cx.global_action_listeners
+        .insert(action.as_any().type_id(), global_action_listeners);
+    }
+
+    if !cx.propagate_event {
+      return;
+    };
+
     for node_id in dispatch_path.iter() {
       let node = self.current_frame.dispatch_tree.node(node_id);
 
@@ -185,6 +211,10 @@ impl Window {
         let any_action = action.as_any();
         if action_ty_id == any_action.type_id() {
           (listener)(any_action, DispatchPhase::Capture, self, cx);
+
+          if !cx.propagate_event {
+            return;
+          };
         };
       }
     }
@@ -196,9 +226,29 @@ impl Window {
       {
         let any_action = action.as_any();
         if action_ty_id == any_action.type_id() {
+          cx.propagate_event = false;
           (listener)(any_action, DispatchPhase::Bubble, self, cx);
+          if !cx.propagate_event {
+            return;
+          };
         };
       }
+    }
+
+    if let Some(global_action_listeners) = cx
+      .global_action_listeners
+      .remove(&action.as_any().type_id())
+    {
+      for listener in global_action_listeners.iter().rev() {
+        cx.propagate_event = false;
+        (listener)(action, DispatchPhase::Bubble, cx);
+        if !cx.propagate_event {
+          break;
+        };
+      }
+
+      cx.global_action_listeners
+        .insert(action.as_any().type_id(), global_action_listeners);
     }
   }
 
@@ -265,6 +315,18 @@ impl Window {
     {
       self.focus(&handle);
     }
+  }
+
+  pub fn handle_input<H>(
+    &mut self,
+    focus_handle: &FocusHandle,
+    input_handler: H,
+  ) where
+    H: InputHandler,
+  {
+    if focus_handle.is_focused(self) {
+      self.next_frame.input_handlers.push(Box::new(input_handler));
+    };
   }
 
   pub(crate) fn with_tab_group<F, R>(
