@@ -53,9 +53,9 @@ impl Element for Text {
       if y >= bounds.y + bounds.height {
         break;
       };
-      terminal.write_at(bounds.x, y, line.as_bytes());
+      terminal.write_at(bounds.x, y, line);
     }
-    terminal.flush();
+    // terminal.flush();
   }
 }
 impl IntoElement for Text {

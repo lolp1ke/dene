@@ -13,7 +13,7 @@ use crate::{
   Action, AnyView, App, AppContext, DispatchKeystrokeResult, DispatchNodeId,
   DispatchPhase, DispatchTree, Entity, FocusHandle, FocusId, FocusTabStopMap,
   InputHandler, IntoElement, KeyDownEvent, KeyUpEvent, KeyboardEvent,
-  Keystroke, LayoutEngine, Modifiers, NoAction, Rect,
+  Keystroke, LayoutEngine, Modifiers, NoAction, Rect, get_terminal,
 };
 
 slotmap::new_key_type! {
@@ -70,7 +70,9 @@ impl Window {
     self.layout_engine.compute(root_node_id, available_space);
 
     root_element.pre_render(self, cx);
+    get_terminal().write().clear();
     root_element.render(self, cx);
+    get_terminal().write().render();
 
     std::mem::swap(&mut self.next_frame, &mut self.current_frame);
     self.next_frame.clear();

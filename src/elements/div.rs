@@ -162,7 +162,7 @@ fn draw_border(bounds: Rect, border: taffy::Rect<taffy::LengthPercentage>) {
     let y_end = bottom - bb;
     if y_start <= y_end {
       for y in y_start..=y_end {
-        terminal.write_at(left, y, "│".as_bytes());
+        terminal.write_at(left, y, "│");
       }
     };
   };
@@ -171,41 +171,41 @@ fn draw_border(bounds: Rect, border: taffy::Rect<taffy::LengthPercentage>) {
     let y_end = bottom - bb;
     if y_start <= y_end {
       for y in y_start..=y_end {
-        terminal.write_at(right, y, "│".as_bytes());
+        terminal.write_at(right, y, "│");
       }
     };
   };
   if bt > 0 {
     let y = top;
     if bl > 0 {
-      terminal.write_at(left, y, "┌".as_bytes());
+      terminal.write_at(left, y, "┌");
     };
     let x_start = left + bl;
     let x_end = right - br;
     if x_start <= x_end {
       let line = "─".repeat((x_end - x_start + 1) as usize);
-      terminal.write_at(x_start, y, line.as_bytes());
+      terminal.write_at(x_start, y, line.as_str());
     };
     if br > 0 {
-      terminal.write_at(right, y, "┐".as_bytes());
+      terminal.write_at(right, y, "┐");
     };
   };
   if bb > 0 {
     let y = bottom;
 
     if bl > 0 {
-      terminal.write_at(left, y, "└".as_bytes());
+      terminal.write_at(left, y, "└");
     };
     let x_start = left + bl;
     let x_end = right - br;
     if x_start <= x_end {
       let line = "─".repeat((x_end - x_start + 1) as usize);
-      terminal.write_at(x_start, y, line.as_bytes());
+      terminal.write_at(x_start, y, line.as_str());
     };
     if br > 0 {
-      terminal.write_at(right, y, "┘".as_bytes());
+      terminal.write_at(right, y, "┘");
     };
   };
 
-  terminal.flush();
+  // terminal.flush();
 }
