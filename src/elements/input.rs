@@ -1,13 +1,13 @@
 // SPDX-License-Identifier: Apache-2.0
 
-use std::{ops::Range, sync::Arc};
+use std::{ops::Range, sync::Arc, time::Duration};
 
 use ropey::Rope;
 
 use crate::{
   App, AppContext, Context, ElementExt, Entity, FocusHandle, Focusable,
   InputHandler, InteractiveElement, IntoElement, Keybind, Keystroke,
-  ParentElement, Render, StyleableElement, Window, div,
+  ParentElement, Render, StyleableElement, Task, Window, div,
 };
 
 mod actions {
@@ -51,7 +51,10 @@ impl Render for Input {
           .on_action(window.listener(&self.state, InputState::move_up))
           .on_action(window.listener(&self.state, InputState::move_down))
       })
-      .child(div().border(1.).child(state.text.to_string()))
+      .child(div().border(1.).child(state.text.to_string()).when(
+        state.cursor.read(cx).visible && state.focus_handle.is_focused(window),
+        |this| this.child(div().child(state.cursor_style())),
+      ))
   }
 }
 
@@ -62,24 +65,25 @@ pub struct InputState {
   pub placeholder: Option<Arc<str>>,
   pub mode: InputMode,
   pub disabled: bool,
-  pub cursor: usize,
+  pub cursor_pos: usize,
   pub selection: Option<Range<usize>>,
+  cursor: Entity<Cursor>,
 }
 impl InputState {
   fn delete(&mut self, _: &Delete, _: &mut Window, _: &mut App) {
-    if self.text.len_chars() > 0 && self.cursor > 0 {
-      self.cursor -= 1;
-      self.text.remove(self.cursor..=self.cursor);
+    if self.text.len_chars() > 0 && self.cursor_pos > 0 {
+      self.cursor_pos -= 1;
+      self.text.remove(self.cursor_pos..=self.cursor_pos);
     };
   }
   fn move_left(&mut self, _: &Left, _: &mut Window, _: &mut App) {
-    if self.cursor > 0 {
-      self.cursor -= 1;
+    if self.cursor_pos > 0 {
+      self.cursor_pos -= 1;
     };
   }
   fn move_right(&mut self, _: &Right, _: &mut Window, _: &mut App) {
-    if self.cursor < self.text.len_chars() {
-      self.cursor += 1;
+    if self.cursor_pos < self.text.len_chars() {
+      self.cursor_pos += 1;
     };
   }
   fn move_up(&mut self, _: &Up, _: &mut Window, _: &mut App) {
@@ -96,6 +100,15 @@ impl InputState {
 
     todo!();
   }
+
+  fn cursor_style(&self) -> &str {
+    // match self.cursor.style {
+    //   CursorStyle::Bar => "▏",
+    //   CursorStyle::Block => "█",
+    //   CursorStyle::Underscore => "_",
+    // }
+    "▏"
+  }
 }
 impl InputHandler for Input {
   fn insert_str(
@@ -106,8 +119,8 @@ impl InputHandler for Input {
     cx: &mut crate::App,
   ) {
     self.state.update(cx, |state, _| {
-      state.text.insert(state.cursor, str);
-      state.cursor += 1;
+      state.text.insert(state.cursor_pos, str);
+      state.cursor_pos += 1;
     });
   }
   fn selected_text(
@@ -118,7 +131,7 @@ impl InputHandler for Input {
     let state = self.state.read(cx);
     match state.selection.clone() {
       Some(range) => {
-        let is_reversed = range.start > state.cursor;
+        let is_reversed = range.start > state.cursor_pos;
         Some((range, is_reversed))
       }
       None => None,
@@ -137,10 +150,6 @@ impl Focusable for InputState {
 }
 
 pub fn input(cx: &mut App) -> Entity<Input> {
-  // cx.bind_keys([Keybind {
-  //   action: Box::new(Delete),
-  //   keystrokes: smallvec![Keystroke::parse("").unwrap(),],
-  // }]);
   let key_context = Some("input");
   cx.bind_keys([
     Keybind::new(Delete, [Keystroke::parse("delete")], key_context),
@@ -157,8 +166,13 @@ pub fn input(cx: &mut App) -> Entity<Input> {
       placeholder: None,
       mode: InputMode::SingleLine,
       disabled: false,
-      cursor: 0,
+      cursor_pos: 0,
       selection: None,
+      cursor: cx.new_entity(|cx| {
+        let mut cursor = Cursor::new();
+        cursor.start_blinking(cx);
+        cursor
+      }),
     }),
   })
 }
@@ -167,4 +181,59 @@ pub fn input(cx: &mut App) -> Entity<Input> {
 pub enum InputMode {
   SingleLine,
   MultiLine,
+}
+
+const CURSOR_BLINK_INTERVAL: Duration = Duration::from_millis(499);
+
+#[derive(Debug)]
+pub(crate) struct Cursor {
+  pub(crate) style: CursorStyle,
+  pub(crate) visible: bool,
+  step: usize,
+  _task: Option<Task<()>>,
+}
+impl Cursor {
+  fn new() -> Self {
+    Self {
+      style: CursorStyle::Bar,
+      visible: true,
+      step: 0,
+      _task: None,
+    }
+  }
+
+  fn start_blinking(&mut self, cx: &mut Context<Self>) {
+    let next_step = self.step + 1;
+    self.step = next_step;
+    self._task = Some(cx.spawn(async move |this, cx| {
+      tokio::time::sleep(CURSOR_BLINK_INTERVAL).await;
+      this.update(cx, |this, cx| {
+        this.blink(next_step, cx);
+      });
+    }));
+  }
+  fn blink(&mut self, step: usize, cx: &mut Context<Self>) {
+    if step != self.step {
+      self.visible = true;
+      return;
+    };
+
+    self.visible = !self.visible;
+    cx.notify();
+
+    self.step += 1;
+    let next_step = self.step;
+    self._task = Some(cx.spawn(async move |this, cx| {
+      tokio::time::sleep(CURSOR_BLINK_INTERVAL).await;
+      this.update(cx, |this, cx| {
+        this.blink(next_step, cx);
+      });
+    }));
+  }
+}
+#[derive(Debug)]
+pub enum CursorStyle {
+  Bar,
+  Block,
+  Underscore,
 }

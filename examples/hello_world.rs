@@ -12,7 +12,7 @@ use dene::{
 };
 
 fn main() {
-  let app = Application::default();
+  let mut app = Application::default();
 
   _ = app.run(|cx| {
     cx.open_window(Default::default(), |_window, cx| {

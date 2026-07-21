@@ -42,6 +42,10 @@ impl<E> Entity<E> {
     self.any
   }
 
+  pub(crate) fn id(&self) -> EntityId {
+    self.any.entity_id
+  }
+
   pub fn read<'a>(&self, cx: &'a App) -> &'a E
   where
     E: 'static,

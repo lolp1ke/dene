@@ -5,40 +5,54 @@ use std::{
   cell::RefCell,
   collections::VecDeque,
   rc::{self, Rc},
-  sync::atomic::{self, AtomicBool},
+  sync::{
+    Arc,
+    atomic::{self, AtomicBool},
+  },
 };
 
 use anyhow::Context as _;
 use crossterm::event as term_event;
 use crossterm::event::EventStream;
-use futures_util::StreamExt as _;
+use futures_util::{FutureExt as _, StreamExt as _};
 use parking_lot::RwLock;
 use rustc_hash::FxHashMap;
 use slotmap::SlotMap;
 use smallvec::smallvec;
+use tokio::sync::mpsc::{UnboundedReceiver, unbounded_channel};
 
 use crate::{
-  Action, ActionRegistry, AnyView, AnyWindowHandle, DeneInput, DispatchPhase,
-  Entity, EntityId, EntityMap, FocusHandle, FocusMap, FocusNext, FocusPrev,
-  Global, KeyDownEvent, KeyUpEvent, Keybind, Keybinds, Keystroke, Quit, Render,
-  TERM, Terminal, Window, WindowHandle, WindowId, WindowOptions, get_terminal,
+  Action, ActionRegistry, AnyView, AnyWindowHandle, BackgroundExecutor,
+  DeneInput, DispatchPhase, Entity, EntityId, EntityMap, FocusHandle, FocusMap,
+  FocusNext, FocusPrev, ForegroundExecutor, ForegroundTask, Global,
+  KeyDownEvent, KeyUpEvent, Keybind, Keybinds, Keystroke, Quit, Render, TERM,
+  Task, Terminal, Window, WindowHandle, WindowId, WindowOptions, get_terminal,
 };
+
+mod async_app;
+pub use self::async_app::*;
 
 #[derive(Debug)]
 pub struct Application {
   app: Rc<RefCell<App>>,
+  frx: Option<UnboundedReceiver<ForegroundTask>>,
 }
 impl Application {
   pub fn new() -> Self {
-    Self { app: App::create() }
+    let (app, frx) = App::create();
+    Self {
+      app,
+      frx: Some(frx),
+    }
   }
 
-  pub fn run<F, R>(&self, f: F) -> anyhow::Result<R>
+  pub fn run<F, R>(&mut self, f: F) -> anyhow::Result<R>
   where
     F: FnOnce(&mut App) -> R,
   {
     let rt = tokio::runtime::Handle::try_current();
     let cx = self.app.clone();
+    let frx = self.frx.take().unwrap();
 
     match rt {
       Ok(rt) => {
@@ -49,8 +63,14 @@ impl Application {
           panic!("required runtime flavor is `rt-multi-thread`");
         };
 
+        let handle = Arc::new(rt);
+        self
+          .app
+          .borrow_mut()
+          .background_executor
+          .pass_handle(handle.clone());
         tokio::task::block_in_place(move || {
-          rt.block_on(async move { App::run(cx, f).await })
+          handle.block_on(async move { App::run(cx, frx, f).await })
         })
       }
       Err(..) => {
@@ -58,7 +78,7 @@ impl Application {
           .enable_all()
           .build()
           .unwrap();
-        rt.block_on(async move { App::run(cx, f).await })
+        rt.block_on(async move { App::run(cx, frx, f).await })
       }
     }
   }
@@ -75,6 +95,9 @@ type GlobalActionListener = Rc<dyn Fn(&dyn Any, DispatchPhase, &mut App)>;
 pub struct App {
   this: rc::Weak<RefCell<Self>>,
   quitting: AtomicBool,
+
+  pub(crate) foreground_executor: ForegroundExecutor,
+  pub(crate) background_executor: BackgroundExecutor,
 
   pub(crate) actions: Rc<ActionRegistry>,
   pub(crate) keybinds: Rc<RefCell<Keybinds>>,
@@ -96,7 +119,7 @@ pub struct App {
   flushing_effects: bool,
 }
 impl App {
-  fn create() -> Rc<RefCell<Self>> {
+  fn create() -> (Rc<RefCell<Self>>, UnboundedReceiver<ForegroundTask>) {
     TERM
       .set(RwLock::new(Terminal::new()))
       .expect("failed to init terminal");
@@ -123,24 +146,31 @@ impl App {
       },
     ]);
 
-    Rc::new_cyclic(|this| {
-      RefCell::new(Self {
-        this: this.clone(),
-        quitting: AtomicBool::new(false),
-        actions: Default::default(),
-        keybinds: Rc::new(RefCell::new(keybinds)),
-        globals_by_type: Default::default(),
-        focus_map: Default::default(),
-        active_window: None,
-        windows: Default::default(),
-        global_action_listeners: Default::default(),
-        propagate_event: true,
-        entities: Default::default(),
-        pending_updates: 0,
-        pending_effects: Default::default(),
-        flushing_effects: false,
-      })
-    })
+    let (tx, rx) = unbounded_channel();
+
+    (
+      Rc::new_cyclic(|this| {
+        RefCell::new(Self {
+          this: this.clone(),
+          quitting: AtomicBool::new(false),
+          foreground_executor: ForegroundExecutor::new(tx),
+          background_executor: BackgroundExecutor::new(),
+          actions: Default::default(),
+          keybinds: Rc::new(RefCell::new(keybinds)),
+          globals_by_type: Default::default(),
+          focus_map: Default::default(),
+          active_window: None,
+          windows: Default::default(),
+          global_action_listeners: Default::default(),
+          propagate_event: true,
+          entities: Default::default(),
+          pending_updates: 0,
+          pending_effects: Default::default(),
+          flushing_effects: false,
+        })
+      }),
+      rx,
+    )
   }
 
   pub fn bind_key(&mut self, keybind: Keybind) {
@@ -151,6 +181,12 @@ impl App {
     I: IntoIterator<Item = Keybind>,
   {
     self.keybinds.borrow_mut().0.extend(keybinds);
+  }
+
+  pub fn to_async(&self) -> AsyncApp {
+    AsyncApp {
+      app: self.this.clone(),
+    }
   }
 
   pub fn open_window<F, V>(
@@ -179,7 +215,11 @@ impl App {
     })
   }
 
-  async fn run<F, R>(this: Rc<RefCell<Self>>, f: F) -> anyhow::Result<R>
+  async fn run<F, R>(
+    this: Rc<RefCell<Self>>,
+    mut frx: UnboundedReceiver<ForegroundTask>,
+    f: F,
+  ) -> anyhow::Result<R>
   where
     F: FnOnce(&mut Self) -> R,
   {
@@ -195,11 +235,42 @@ impl App {
         Some(Ok(event)) = event_stream.next() => {
           this.borrow_mut().handle_event(event);
         }
+        Some(runnable) = frx.recv() => {
+          (runnable)();
+          // TODO: this is a workaround
+          let handle = this.borrow().active_window;
+          if let Some(active_window) = handle {
+            _ = active_window.update(&mut *this.borrow_mut(), |_, window, cx| {
+              if window.dirty {
+                window.render(cx);
+              };
+            });
+          };
+        }
       }
     }
 
     get_terminal().write().restore();
     anyhow::Ok(result)
+  }
+
+  pub fn spawn<AsyncFn, R>(&self, f: AsyncFn) -> Task<R>
+  where
+    AsyncFn: 'static + AsyncFnOnce(&mut AsyncApp) -> R,
+    R: 'static,
+  {
+    let mut cx = self.to_async();
+    self
+      .foreground_executor
+      .spawn(async move { f(&mut cx).await }.boxed_local())
+  }
+  pub fn spawn_on_background<Fut, R>(&self, f: Fut) -> Task<R>
+  where
+    Fut: 'static + Future<Output = R> + Send,
+    Fut::Output: 'static,
+    R: 'static + Send,
+  {
+    self.background_executor.spawn(f)
   }
 
   fn on_action<F, A>(&mut self, listener: F)
@@ -383,6 +454,15 @@ impl App {
       .context("no window id found")
   }
 
+  pub fn notify(&mut self, entity_id: EntityId) {
+    if let Some(active_window) = self.active_window {
+      _ = active_window.update(self, |_, window, _| {
+        window.dirty = true;
+      });
+    };
+    self.pending_effects.push_back(Effect::Notify { entity_id });
+  }
+
   fn update<F, R>(&mut self, f: F) -> R
   where
     F: FnOnce(&mut Self) -> R,
@@ -483,6 +563,23 @@ pub struct Context<'a, E> {
 impl<'a, E> Context<'a, E> {
   pub(crate) const fn new(app: &'a mut App, entity: Entity<E>) -> Self {
     Self { app, entity }
+  }
+
+  pub fn entity_id(&self) -> EntityId {
+    self.entity.id()
+  }
+  pub fn notify(&mut self) {
+    self.app.notify(self.entity_id());
+  }
+
+  pub fn spawn<AsyncFn, R>(&self, f: AsyncFn) -> Task<R>
+  where
+    E: 'static,
+    AsyncFn: 'static + AsyncFnOnce(Entity<E>, &mut AsyncApp) -> R,
+    R: 'static,
+  {
+    let this = self.entity.clone();
+    self.app.spawn(async move |cx| f(this, cx).await)
   }
 }
 
