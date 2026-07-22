@@ -18,6 +18,77 @@ pub trait Render: 'static + Sized {
     cx: &mut Context<Self>,
   ) -> impl IntoElement;
 }
+pub trait RenderOnce: 'static {
+  fn render(self, window: &mut Window, cx: &mut App) -> impl IntoElement;
+}
+
+pub struct Component<C>
+where
+  C: RenderOnce,
+{
+  component: Option<C>,
+}
+impl<C> Component<C>
+where
+  C: RenderOnce,
+{
+  pub const fn new(component: C) -> Self {
+    Self {
+      component: Some(component),
+    }
+  }
+}
+impl<C> Element for Component<C>
+where
+  C: RenderOnce,
+{
+  type RequestLayoutState = AnyElement;
+  type PreRenderState = ();
+
+  fn request_layout(
+    &mut self,
+    window: &mut Window,
+    cx: &mut App,
+  ) -> (taffy::NodeId, Self::RequestLayoutState) {
+    let mut element = self
+      .component
+      .take()
+      .unwrap()
+      .render(window, cx)
+      .into_any_element();
+    let node_id = element.request_layout(window, cx);
+    (node_id, element)
+  }
+  fn pre_render(
+    &mut self,
+    _: Rect,
+    request_layout: &mut Self::RequestLayoutState,
+    window: &mut Window,
+    cx: &mut App,
+  ) -> Self::PreRenderState {
+    request_layout.pre_render(window, cx);
+  }
+  fn render(
+    &mut self,
+    _: Rect,
+    request_layout: &mut Self::RequestLayoutState,
+    _: &mut Self::PreRenderState,
+    window: &mut Window,
+    cx: &mut App,
+  ) {
+    request_layout.render(window, cx);
+  }
+}
+impl<C> IntoElement for Component<C>
+where
+  C: RenderOnce,
+{
+  type Element = Self;
+
+  fn into_element(self) -> Self::Element {
+    self
+  }
+}
 
 pub trait IntoElement: Sized {
   type Element: Element;

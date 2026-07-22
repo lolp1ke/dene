@@ -27,7 +27,7 @@ use crate::{
   FocusHandle, FocusMap, FocusNext, FocusPrev, ForegroundExecutor,
   ForegroundTask, Global, KeyDownEvent, KeyUpEvent, Keybind, Keybinds,
   Keystroke, Quit, Render, TERM, Task, Terminal, Window, WindowHandle,
-  WindowId, WindowOptions, get_terminal,
+  WindowId, WindowOptions, elements, get_terminal,
 };
 
 mod async_app;
@@ -231,6 +231,8 @@ impl App {
     F: FnOnce(&mut Self) -> R,
   {
     let result = f(&mut this.borrow_mut());
+    elements::init(&mut this.borrow_mut());
+
     this.borrow_mut().on_action(|_: &Quit, _, cx| {
       cx.quitting.store(true, atomic::Ordering::Relaxed);
     });
@@ -597,6 +599,9 @@ impl<'a, E> Context<'a, E> {
     Self { app, entity }
   }
 
+  pub fn entity(&self) -> Entity<E> {
+    self.entity.clone()
+  }
   pub const fn entity_id(&self) -> EntityId {
     self.entity.id()
   }

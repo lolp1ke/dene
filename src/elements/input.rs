@@ -6,9 +6,10 @@ use ropey::Rope;
 use smallvec::{SmallVec, smallvec};
 
 use crate::{
-  App, AppContext, Context, Element, ElementExt, Entity, FocusHandle,
-  Focusable, InputHandler, InteractiveElement, IntoElement, Keybind, Keystroke,
-  ParentElement, Render, StyleableElement, Task, Window, div, get_terminal,
+  App, AppContext, Component, Context, Element, ElementExt, Entity,
+  EventDispatcher, FocusHandle, Focusable, InputHandler, InteractiveElement,
+  IntoElement, Keybind, Keystroke, ParentElement, Render, RenderOnce,
+  StyleableElement, Task, Window, div, get_terminal,
 };
 
 mod actions {
@@ -31,14 +32,32 @@ use self::actions::*;
 
 #[derive(Debug)]
 pub struct Input {
-  pub state: Entity<InputState>,
+  state: Entity<InputState>,
+  style: taffy::Style,
+  tab_index: isize,
+  disabled: bool,
 }
-impl Render for Input {
-  fn render(
-    &mut self,
-    window: &mut Window,
-    cx: &mut Context<Self>,
-  ) -> impl IntoElement {
+impl Input {
+  pub fn new(state: &Entity<InputState>) -> Self {
+    Self {
+      state: state.clone(),
+      style: taffy::Style::DEFAULT,
+      tab_index: 0,
+      disabled: false,
+    }
+  }
+
+  pub fn tab_index(mut self, tab_index: isize) -> Self {
+    self.tab_index = tab_index;
+    self
+  }
+  pub fn disabled(mut self, disabled: bool) -> Self {
+    self.disabled = disabled;
+    self
+  }
+}
+impl RenderOnce for Input {
+  fn render(self, window: &mut Window, cx: &mut App) -> impl IntoElement {
     let state = self.state.read(cx);
 
     div()
@@ -71,19 +90,43 @@ impl Render for Input {
       )
   }
 }
+impl IntoElement for Input {
+  type Element = Component<Self>;
+
+  fn into_element(self) -> Self::Element {
+    Component::new(self)
+  }
+}
 
 #[derive(Debug)]
 pub struct InputState {
-  pub focus_handle: FocusHandle,
-  pub text: Rope,
-  pub placeholder: Option<Arc<str>>,
-  pub mode: InputMode,
-  pub disabled: bool,
-  pub cursor_pos: usize,
-  pub selection: Option<Range<usize>>,
+  focus_handle: FocusHandle,
+  text: Rope,
+  placeholder: Option<Arc<str>>,
+  mode: InputMode,
+  disabled: bool,
+  cursor_pos: usize,
+  selection: Option<Range<usize>>,
   cursor: Entity<CursorBlinking>,
 }
 impl InputState {
+  pub fn new(cx: &mut Context<Self>) -> Self {
+    let mut focus_handle = cx.focus_handle();
+    focus_handle.tab_stop(true);
+    let cursor_blinker = cx.new_entity(|_| CursorBlinking::new());
+
+    Self {
+      focus_handle,
+      text: Rope::new(),
+      placeholder: None,
+      mode: InputMode::SingleLine,
+      disabled: false,
+      cursor_pos: 0,
+      selection: None,
+      cursor: cursor_blinker,
+    }
+  }
+
   fn delete(&mut self, _: &Delete, _: &mut Window, _: &mut App) {
     if self.text.len_chars() > 0 && self.cursor_pos > 0 {
       self.cursor_pos -= 1;
@@ -115,7 +158,7 @@ impl InputState {
     todo!();
   }
 }
-impl InputHandler for Input {
+impl InputHandler for InputState {
   fn insert_str(
     &mut self,
     range: Option<Range<usize>>,
@@ -123,29 +166,21 @@ impl InputHandler for Input {
     window: &mut Window,
     cx: &mut crate::App,
   ) {
-    self.state.update(cx, |state, _| {
-      state.text.insert(state.cursor_pos, str);
-      state.cursor_pos += 1;
-    });
+    self.text.insert(self.cursor_pos, str);
+    self.cursor_pos += 1;
   }
   fn selected_text(
     &mut self,
     window: &mut Window,
     cx: &mut crate::App,
   ) -> Option<(Range<usize>, bool)> {
-    let state = self.state.read(cx);
-    match state.selection.clone() {
+    match self.selection.clone() {
       Some(range) => {
-        let is_reversed = range.start > state.cursor_pos;
+        let is_reversed = range.start > self.cursor_pos;
         Some((range, is_reversed))
       }
       None => None,
     }
-  }
-}
-impl Focusable for Input {
-  fn focus_handle(&self, cx: &App) -> FocusHandle {
-    self.state.read(cx).focus_handle.clone()
   }
 }
 impl Focusable for InputState {
@@ -153,92 +188,17 @@ impl Focusable for InputState {
     self.focus_handle.clone()
   }
 }
-
-pub fn input(cx: &mut App) -> Entity<Input> {
-  let key_context = Some("input");
-  cx.bind_keys([
-    Keybind::new(Delete, [Keystroke::parse("delete")], key_context),
-    Keybind::new(Left, [Keystroke::parse("left")], key_context),
-    Keybind::new(Right, [Keystroke::parse("right")], key_context),
-    Keybind::new(Up, [Keystroke::parse("up")], key_context),
-    Keybind::new(Down, [Keystroke::parse("down")], key_context),
-  ]);
-
-  cx.new_entity(|cx| Input {
-    state: cx.new_entity(|cx| InputState {
-      focus_handle: cx.focus_handle(),
-      text: Rope::new(),
-      placeholder: None,
-      mode: InputMode::SingleLine,
-      disabled: false,
-      cursor_pos: 0,
-      selection: None,
-      cursor: cx.new_entity(|cx| {
-        let mut cursor = CursorBlinking::new();
-        cursor.start_blinking(cx);
-        cursor
-      }),
-    }),
-  })
-}
+impl EventDispatcher<InputEvent> for InputState {}
 
 #[derive(Debug)]
 pub enum InputMode {
   SingleLine,
   MultiLine,
 }
-
-const CURSOR_BLINK_INTERVAL: Duration = Duration::from_millis(499);
-
 #[derive(Debug)]
-pub(crate) struct CursorBlinking {
-  pub(crate) visible: bool,
-  step: usize,
-  _task: Option<Task<()>>,
-}
-impl CursorBlinking {
-  fn new() -> Self {
-    Self {
-      visible: true,
-      step: 0,
-      _task: None,
-    }
-  }
-
-  fn start_blinking(&mut self, cx: &mut Context<Self>) {
-    let next_step = self.step + 1;
-    self.step = next_step;
-    self._task = Some(cx.spawn(async move |this, cx| {
-      tokio::time::sleep(CURSOR_BLINK_INTERVAL).await;
-      this.update(cx, |this, cx| {
-        this.blink(next_step, cx);
-      });
-    }));
-  }
-  fn blink(&mut self, step: usize, cx: &mut Context<Self>) {
-    if step != self.step {
-      self.visible = true;
-      return;
-    };
-
-    self.visible = !self.visible;
-    cx.notify();
-
-    self.step += 1;
-    let next_step = self.step;
-    self._task = Some(cx.spawn(async move |this, cx| {
-      tokio::time::sleep(CURSOR_BLINK_INTERVAL).await;
-      this.update(cx, |this, cx| {
-        this.blink(next_step, cx);
-      });
-    }));
-  }
-}
-#[derive(Debug)]
-pub enum CursorStyle {
-  Bar,
-  Block,
-  Underscore,
+pub enum InputEvent {
+  Submit,
+  Change,
 }
 
 #[derive(Debug)]
@@ -355,4 +315,69 @@ struct Cursor {
   pub(crate) pos: usize,
   pub(crate) visible: bool,
   pub(crate) style: CursorStyle,
+}
+
+const CURSOR_BLINK_INTERVAL: Duration = Duration::from_millis(499);
+
+#[derive(Debug)]
+pub(crate) struct CursorBlinking {
+  pub(crate) visible: bool,
+  step: usize,
+  _task: Option<Task<()>>,
+}
+impl CursorBlinking {
+  fn new() -> Self {
+    Self {
+      visible: true,
+      step: 0,
+      _task: None,
+    }
+  }
+
+  fn start_blinking(&mut self, cx: &mut Context<Self>) {
+    let next_step = self.step + 1;
+    self.step = next_step;
+    self._task = Some(cx.spawn(async move |this, cx| {
+      tokio::time::sleep(CURSOR_BLINK_INTERVAL).await;
+      this.update(cx, |this, cx| {
+        this.blink(next_step, cx);
+      });
+    }));
+  }
+  fn blink(&mut self, step: usize, cx: &mut Context<Self>) {
+    if step != self.step {
+      self.visible = true;
+      return;
+    };
+
+    self.visible = !self.visible;
+    cx.notify();
+
+    self.step += 1;
+    let next_step = self.step;
+    self._task = Some(cx.spawn(async move |this, cx| {
+      tokio::time::sleep(CURSOR_BLINK_INTERVAL).await;
+      this.update(cx, |this, cx| {
+        this.blink(next_step, cx);
+      });
+    }));
+  }
+}
+#[derive(Debug)]
+pub enum CursorStyle {
+  Bar,
+  Block,
+  Underscore,
+}
+
+const KEY_CONTEXT: &str = "input";
+pub(crate) fn init(cx: &mut App) {
+  let key_context = Some(KEY_CONTEXT);
+  cx.bind_keys([
+    Keybind::new(Delete, [Keystroke::parse("delete")], key_context),
+    Keybind::new(Left, [Keystroke::parse("left")], key_context),
+    Keybind::new(Right, [Keystroke::parse("right")], key_context),
+    Keybind::new(Up, [Keystroke::parse("up")], key_context),
+    Keybind::new(Down, [Keystroke::parse("down")], key_context),
+  ]);
 }

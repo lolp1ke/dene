@@ -5,7 +5,7 @@ use dene::{
   element::{
     InteractiveElement, IntoElement, ParentElement, Render, StyleableElement,
   },
-  elements::{Input, div, input},
+  elements::{Input, InputState, div},
   entity::Entity,
   focus::{FocusHandle, Focusable},
   window::Window,
@@ -26,11 +26,11 @@ fn main() {
 
 struct HelloWorld {
   focus_handle: FocusHandle,
-  input: Entity<Input>,
+  input: Entity<InputState>,
 }
 impl HelloWorld {
   fn new(cx: &mut Context<Self>) -> Self {
-    let input = input(cx);
+    let input = cx.new_entity(|cx| InputState::new(cx));
 
     Self {
       focus_handle: cx.focus_handle(),
@@ -66,7 +66,7 @@ impl Render for HelloWorld {
           .child("one")
           .child("piece"),
       )
-      .child(self.input.clone())
+      .child(Input::new(&self.input))
   }
 }
 impl Focusable for HelloWorld {
