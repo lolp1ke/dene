@@ -11,7 +11,9 @@ pub(crate) fn init_tracing() {
   use tracing_subscriber::layer::SubscriberExt as _;
   use tracing_subscriber::util::SubscriberInitExt as _;
 
-  let Ok(pty_pipe) = OpenOptions::new().write(true).open(LOG_FIFO) else {
+  let Ok(pty_pipe) = OpenOptions::new().read(true).write(true).open(LOG_FIFO)
+  else {
+    #[cfg(debug_assertions)]
     eprintln!("run `mkfifo {}` to enable logs", LOG_FIFO);
     return;
   };

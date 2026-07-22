@@ -1,13 +1,14 @@
 // SPDX-License-Identifier: Apache-2.0
 
-use std::{ops::Range, sync::Arc, time::Duration};
+use std::{borrow::Cow, io::Write, ops::Range, sync::Arc, time::Duration};
 
 use ropey::Rope;
+use smallvec::{SmallVec, smallvec};
 
 use crate::{
-  App, AppContext, Context, ElementExt, Entity, FocusHandle, Focusable,
-  InputHandler, InteractiveElement, IntoElement, Keybind, Keystroke,
-  ParentElement, Render, StyleableElement, Task, Window, div,
+  App, AppContext, Context, Element, ElementExt, Entity, FocusHandle,
+  Focusable, InputHandler, InteractiveElement, IntoElement, Keybind, Keystroke,
+  ParentElement, Render, StyleableElement, Task, Window, div, get_terminal,
 };
 
 mod actions {
@@ -58,12 +59,21 @@ impl Render for Input {
           .min_h(3.)
           .max_w(32.)
           .max_h(3.)
-          .child(state.text.to_string())
-          .when(
-            state.cursor.read(cx).visible
-              && state.focus_handle.is_focused(window),
-            |this| this.child(div().child(state.cursor_style())),
-          ),
+          .child(InputContent {
+            text: state.text.to_string(),
+            cursors: smallvec![Cursor {
+              pos: state.cursor_pos,
+              visible: state.cursor.read(cx).visible
+                && state.focus_handle.is_focused(window),
+              style: CursorStyle::Underscore,
+            }],
+          }),
+        // .child(state.text.to_string())
+        // .when(
+        //   state.cursor.read(cx).visible
+        //     && state.focus_handle.is_focused(window),
+        //   |this| this.child(div().child(state.cursor_style())),
+        // ),
       )
   }
 }
@@ -77,7 +87,7 @@ pub struct InputState {
   pub disabled: bool,
   pub cursor_pos: usize,
   pub selection: Option<Range<usize>>,
-  cursor: Entity<Cursor>,
+  cursor: Entity<CursorBlinking>,
 }
 impl InputState {
   fn delete(&mut self, _: &Delete, _: &mut Window, _: &mut App) {
@@ -179,7 +189,7 @@ pub fn input(cx: &mut App) -> Entity<Input> {
       cursor_pos: 0,
       selection: None,
       cursor: cx.new_entity(|cx| {
-        let mut cursor = Cursor::new();
+        let mut cursor = CursorBlinking::new();
         cursor.start_blinking(cx);
         cursor
       }),
@@ -196,13 +206,13 @@ pub enum InputMode {
 const CURSOR_BLINK_INTERVAL: Duration = Duration::from_millis(499);
 
 #[derive(Debug)]
-pub(crate) struct Cursor {
+pub(crate) struct CursorBlinking {
   pub(crate) style: CursorStyle,
   pub(crate) visible: bool,
   step: usize,
   _task: Option<Task<()>>,
 }
-impl Cursor {
+impl CursorBlinking {
   fn new() -> Self {
     Self {
       style: CursorStyle::Bar,
@@ -246,4 +256,120 @@ pub enum CursorStyle {
   Bar,
   Block,
   Underscore,
+}
+
+#[derive(Debug)]
+pub struct InputContent {
+  pub(crate) text: String,
+  pub(crate) cursors: SmallVec<[Cursor; 2]>,
+}
+impl Element for InputContent {
+  type RequestLayoutState = ();
+  type PreRenderState = ();
+
+  fn request_layout(
+    &mut self,
+    window: &mut Window,
+    cx: &mut App,
+  ) -> (taffy::NodeId, Self::RequestLayoutState) {
+    let width = self.text.len() as f32;
+    let height = self.text.lines().count() as f32;
+    let mut style = taffy::Style::DEFAULT;
+    style.min_size = taffy::Size {
+      width: taffy::Dimension::length(width),
+      height: taffy::Dimension::length(height.max(1.)),
+    };
+    style.size = taffy::Size {
+      width: taffy::Dimension::length(width),
+      height: taffy::Dimension::length(height),
+    };
+    let node_id = window.request_layout(style, &[], cx);
+    (node_id, ())
+  }
+  fn pre_render(
+    &mut self,
+    _: crate::Rect,
+    _: &mut Self::RequestLayoutState,
+    _: &mut Window,
+    _: &mut App,
+  ) -> Self::PreRenderState {
+  }
+  fn render(
+    &mut self,
+    bounds: crate::Rect,
+    request_layout: &mut Self::RequestLayoutState,
+    pre_render: &mut Self::PreRenderState,
+    window: &mut Window,
+    cx: &mut App,
+  ) {
+    let mut terminal = get_terminal().write();
+
+    for (i, line) in self.text.lines().enumerate() {
+      let y = bounds.y + i as u16;
+      if y >= bounds.y + bounds.height {
+        break;
+      };
+
+      terminal.write_at(bounds.x, y, line);
+    }
+
+    for cursor in self.cursors.iter() {
+      if !cursor.visible {
+        continue;
+      };
+
+      let x = bounds.x + cursor.pos as u16;
+      let y = bounds.y;
+
+      match cursor.style {
+        CursorStyle::Bar => {
+          let original = self.text[cursor.pos..].chars().next().unwrap_or(' ');
+          let mut buf = [0u8; 4];
+          let orig = original.encode_utf8(&mut buf);
+          terminal.write_ansi_at(x, y, "\u{258f}", orig);
+        }
+        CursorStyle::Block => {
+          if let Some(ch) = self.text[cursor.pos..].chars().next() {
+            let mut buf = [0; 4];
+            let buf = ch.encode_utf8(&mut buf);
+            terminal.write_ansi_at(
+              x,
+              y,
+              &format!("\x1b[7m{}\x1b[27m", buf),
+              buf,
+            );
+          } else {
+            terminal.write_ansi_at(x, y, "\x1b[7m \x1b[27m", " ");
+          };
+        }
+        CursorStyle::Underscore => {
+          if let Some(ch) = self.text[cursor.pos..].chars().next() {
+            let mut buf = [0; 4];
+            let buf = ch.encode_utf8(&mut buf);
+            terminal.write_ansi_at(
+              x,
+              y,
+              &format!("\x1b[4m{}\x1b[24m", buf),
+              buf,
+            );
+          } else {
+            terminal.write_ansi_at(x, y, "\x1b[4m \x1b[24m", " ");
+          };
+        }
+      };
+    }
+  }
+}
+impl IntoElement for InputContent {
+  type Element = Self;
+
+  fn into_element(self) -> Self::Element {
+    self
+  }
+}
+#[derive(Debug)]
+pub struct Cursor {
+  pub(crate) pos: usize,
+  pub(crate) visible: bool,
+  pub(crate) style: CursorStyle,
 }
