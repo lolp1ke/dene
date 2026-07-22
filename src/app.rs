@@ -23,11 +23,11 @@ use tokio::sync::mpsc::{UnboundedReceiver, unbounded_channel};
 
 use crate::{
   Action, ActionRegistry, AnyView, AnyWindowHandle, BackgroundExecutor,
-  DeneInput, DispatchPhase, Entity, EntityId, EntityMap, EventDispatcherSet,
-  FocusHandle, FocusMap, FocusNext, FocusPrev, ForegroundExecutor,
-  ForegroundTask, Global, KeyDownEvent, KeyUpEvent, Keybind, Keybinds,
-  Keystroke, Quit, Render, TERM, Task, Terminal, Window, WindowHandle,
-  WindowId, WindowOptions, elements, get_terminal,
+  DeneInput, DispatchPhase, Entity, EntityId, EntityMap, EventDispatcher,
+  EventDispatcherSet, FocusHandle, FocusMap, FocusNext, FocusPrev,
+  ForegroundExecutor, ForegroundTask, Global, KeyDownEvent, KeyUpEvent,
+  Keybind, Keybinds, Keystroke, Quit, Render, TERM, Task, Terminal, Window,
+  WindowHandle, WindowId, WindowOptions, elements, get_terminal,
 };
 
 mod async_app;
@@ -452,29 +452,6 @@ impl App {
       .context("no window id found")
   }
 
-  pub fn on_event<E, F, Event>(&mut self, entity: Entity<E>, mut on_event: F)
-  where
-    E: 'static,
-    F: 'static + FnMut(Entity<E>, &dyn Any, &mut App) -> bool,
-    Event: 'static,
-  {
-    self.event_dispatchers.insert(
-      entity.id(),
-      (
-        TypeId::of::<Event>(),
-        Box::new(move |event, cx| {
-          if let Some(event) = event.downcast_ref::<Event>() {
-            (on_event)(entity.clone(), event, cx)
-          } else {
-            // TODO: add tracing plz future me
-            dbg!("WARN: failed to downcast event type");
-            false
-          }
-        }),
-      ),
-    );
-  }
-
   pub fn notify(&mut self, entity_id: EntityId) {
     if let Some(active_window) = self.active_window {
       _ = active_window.update(self, |_, window, _| {
@@ -614,6 +591,7 @@ impl<'a, E> Context<'a, E> {
   pub const fn entity_id(&self) -> EntityId {
     self.entity.id()
   }
+
   pub fn notify(&mut self) {
     self.app.notify(self.entity_id());
   }
@@ -626,6 +604,28 @@ impl<'a, E> Context<'a, E> {
       event: Box::new(event),
       event_ty: TypeId::of::<Event>(),
     });
+  }
+
+  pub fn on_event<E2, F, Event>(&mut self, entity: Entity<E2>, mut on_event: F)
+  where
+    E: 'static,
+    E2: 'static + EventDispatcher<Event>,
+    F: 'static + FnMut(Entity<E2>, &Event, &mut App) -> bool,
+    Event: 'static,
+  {
+    self.event_dispatchers.insert(
+      entity.id(),
+      (
+        TypeId::of::<Event>(),
+        Box::new(move |event, cx| {
+          if let Some(event) = event.downcast_ref::<Event>() {
+            (on_event)(entity.clone(), event, cx)
+          } else {
+            false
+          }
+        }),
+      ),
+    );
   }
 
   pub fn spawn<AsyncFn, R>(&self, f: AsyncFn) -> Task<R>

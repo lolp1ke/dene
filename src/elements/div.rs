@@ -83,7 +83,7 @@ impl Element for Div {
     if self.interactivity.tab_stop {
       tab_index = self.interactivity.tab_index;
     };
-    if let Some(mut focus_handle) =
+    if let Some(focus_handle) =
       self.interactivity.tracking_focus_handle.as_mut()
     {
       focus_handle.tab_index(self.interactivity.tab_index.unwrap_or(0));
@@ -206,6 +206,4 @@ fn draw_border(bounds: Rect, border: taffy::Rect<taffy::LengthPercentage>) {
       terminal.write_at(right, y, "┘");
     };
   };
-
-  // terminal.flush();
 }

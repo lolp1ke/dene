@@ -184,11 +184,15 @@ impl InputState {
       todo!("insert new line");
     };
 
-    panic!("a");
     cx.emit(InputEvent::Submit);
   }
   fn escape(&mut self, _: &Escape, _: &mut Window, _: &mut Context<Self>) {
     self.selection = None;
+  }
+}
+impl InputState {
+  pub fn text(&self) -> String {
+    self.text.to_string()
   }
 }
 impl InputHandler for InputState {

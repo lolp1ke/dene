@@ -5,7 +5,7 @@ use dene::{
   element::{
     InteractiveElement, IntoElement, ParentElement, Render, StyleableElement,
   },
-  elements::{Input, InputState, div},
+  elements::{Input, InputEvent, InputState, div},
   entity::Entity,
   focus::{FocusHandle, Focusable},
   window::Window,
@@ -27,14 +27,26 @@ fn main() {
 struct HelloWorld {
   focus_handle: FocusHandle,
   input: Entity<InputState>,
+
+  search: String,
 }
 impl HelloWorld {
   fn new(cx: &mut Context<Self>) -> Self {
     let input = cx.new_entity(InputState::new);
 
+    cx.on_event(input.clone(), |input, event: &InputEvent, cx| {
+      match event {
+        InputEvent::Submit => print!("{:?}", input.read(cx).text()),
+        _ => {}
+      };
+
+      true
+    });
+
     Self {
       focus_handle: cx.focus_handle(),
       input,
+      search: String::new(),
     }
   }
 }
