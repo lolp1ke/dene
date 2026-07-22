@@ -51,10 +51,20 @@ impl Render for Input {
           .on_action(window.listener(&self.state, InputState::move_up))
           .on_action(window.listener(&self.state, InputState::move_down))
       })
-      .child(div().border(1.).child(state.text.to_string()).when(
-        state.cursor.read(cx).visible && state.focus_handle.is_focused(window),
-        |this| this.child(div().child(state.cursor_style())),
-      ))
+      .child(
+        div()
+          .border(1.)
+          .min_w(32.)
+          .min_h(3.)
+          .max_w(32.)
+          .max_h(3.)
+          .child(state.text.to_string())
+          .when(
+            state.cursor.read(cx).visible
+              && state.focus_handle.is_focused(window),
+            |this| this.child(div().child(state.cursor_style())),
+          ),
+      )
   }
 }
 

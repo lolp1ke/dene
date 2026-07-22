@@ -23,10 +23,11 @@ use tokio::sync::mpsc::{UnboundedReceiver, unbounded_channel};
 
 use crate::{
   Action, ActionRegistry, AnyView, AnyWindowHandle, BackgroundExecutor,
-  DeneInput, DispatchPhase, Entity, EntityId, EntityMap, FocusHandle, FocusMap,
-  FocusNext, FocusPrev, ForegroundExecutor, ForegroundTask, Global,
-  KeyDownEvent, KeyUpEvent, Keybind, Keybinds, Keystroke, Quit, Render, TERM,
-  Task, Terminal, Window, WindowHandle, WindowId, WindowOptions, get_terminal,
+  DeneInput, DispatchPhase, Entity, EntityId, EntityMap, EventDispatcherSet,
+  FocusHandle, FocusMap, FocusNext, FocusPrev, ForegroundExecutor,
+  ForegroundTask, Global, KeyDownEvent, KeyUpEvent, Keybind, Keybinds,
+  Keystroke, Quit, Render, TERM, Task, Terminal, Window, WindowHandle,
+  WindowId, WindowOptions, get_terminal,
 };
 
 mod async_app;
@@ -90,6 +91,7 @@ impl Default for Application {
 }
 
 type GlobalActionListener = Rc<dyn Fn(&dyn Any, DispatchPhase, &mut App)>;
+type EventDispatcListener = Box<dyn FnMut(&dyn Any, &mut App) -> bool>;
 
 #[derive(derive_more::Debug)]
 pub struct App {
@@ -110,6 +112,9 @@ pub struct App {
   #[debug(skip)]
   pub(crate) global_action_listeners:
     FxHashMap<TypeId, Vec<GlobalActionListener>>,
+  #[debug(skip)]
+  pub(crate) event_dispatchers:
+    EventDispatcherSet<EntityId, (TypeId, EventDispatcListener)>,
   pub(crate) propagate_event: bool,
 
   pub(crate) entities: EntityMap,
@@ -123,6 +128,7 @@ impl App {
     TERM
       .set(RwLock::new(Terminal::new()))
       .expect("failed to init terminal");
+    crate::init_tracing();
 
     let mut keybinds = Keybinds(Vec::new());
     keybinds.extend([
@@ -162,6 +168,7 @@ impl App {
           active_window: None,
           windows: Default::default(),
           global_action_listeners: Default::default(),
+          event_dispatchers: Default::default(),
           propagate_event: true,
           entities: Default::default(),
           pending_updates: 0,
@@ -454,6 +461,29 @@ impl App {
       .context("no window id found")
   }
 
+  pub fn on_event<E, F, Event>(&mut self, entity: Entity<E>, mut on_event: F)
+  where
+    E: 'static,
+    F: 'static + FnMut(Entity<E>, &dyn Any, &mut App) -> bool,
+    Event: 'static,
+  {
+    self.event_dispatchers.insert(
+      entity.id(),
+      (
+        TypeId::of::<Event>(),
+        Box::new(move |event, cx| {
+          if let Some(event) = event.downcast_ref::<Event>() {
+            (on_event)(entity.clone(), event, cx)
+          } else {
+            // TODO: add tracing plz future me
+            dbg!("WARN: failed to downcast event type");
+            false
+          }
+        }),
+      ),
+    );
+  }
+
   pub fn notify(&mut self, entity_id: EntityId) {
     if let Some(active_window) = self.active_window {
       _ = active_window.update(self, |_, window, _| {
@@ -461,6 +491,23 @@ impl App {
       });
     };
     self.pending_effects.push_back(Effect::Notify { entity_id });
+  }
+  pub fn apply_emit(
+    &mut self,
+    emitter: &EntityId,
+    event_ty: TypeId,
+    event: &dyn Any,
+  ) {
+    self
+      .event_dispatchers
+      .clone()
+      .retain(emitter, |(cb_event_ty, cb)| {
+        if *cb_event_ty == event_ty {
+          (cb)(event, self)
+        } else {
+          true
+        }
+      });
   }
 
   fn update<F, R>(&mut self, f: F) -> R
@@ -483,8 +530,13 @@ impl App {
   fn flush_effects(&mut self) {
     while let Some(effect) = self.pending_effects.pop_front() {
       // TODO
-      #[expect(clippy::match_single_binding)]
+      #[expect(clippy::single_match)]
       match effect {
+        Effect::Emit {
+          emitter,
+          event,
+          event_ty,
+        } => self.apply_emit(&emitter, event_ty, &*event),
         _ => {}
       }
     }
@@ -565,11 +617,21 @@ impl<'a, E> Context<'a, E> {
     Self { app, entity }
   }
 
-  pub fn entity_id(&self) -> EntityId {
+  pub const fn entity_id(&self) -> EntityId {
     self.entity.id()
   }
   pub fn notify(&mut self) {
     self.app.notify(self.entity_id());
+  }
+  pub fn emit<Event>(&mut self, event: Event)
+  where
+    Event: 'static,
+  {
+    self.app.pending_effects.push_back(Effect::Emit {
+      emitter: self.entity_id(),
+      event: Box::new(event),
+      event_ty: TypeId::of::<Event>(),
+    });
   }
 
   pub fn spawn<AsyncFn, R>(&self, f: AsyncFn) -> Task<R>

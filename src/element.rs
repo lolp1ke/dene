@@ -488,6 +488,38 @@ pub trait StyleableElement: Sized {
     self.style().size.height = taffy::Dimension::auto();
     self
   }
+  fn min_w(mut self, w: f32) -> Self {
+    self.style().min_size.width = taffy::Dimension::length(w);
+    self
+  }
+  fn min_h(mut self, h: f32) -> Self {
+    self.style().min_size.height = taffy::Dimension::length(h);
+    self
+  }
+  fn max_w(mut self, w: f32) -> Self {
+    self.style().max_size.width = taffy::Dimension::length(w);
+    self
+  }
+  fn max_h(mut self, h: f32) -> Self {
+    self.style().max_size.height = taffy::Dimension::length(h);
+    self
+  }
+  fn min_wp(mut self, w: f32) -> Self {
+    self.style().min_size.width = taffy::Dimension::percent(w);
+    self
+  }
+  fn min_hp(mut self, h: f32) -> Self {
+    self.style().min_size.height = taffy::Dimension::percent(h);
+    self
+  }
+  fn max_wp(mut self, w: f32) -> Self {
+    self.style().max_size.width = taffy::Dimension::percent(w);
+    self
+  }
+  fn max_hp(mut self, h: f32) -> Self {
+    self.style().max_size.height = taffy::Dimension::percent(h);
+    self
+  }
   fn w_full(mut self) -> Self {
     self.style().size.width = taffy::Dimension::percent(1.);
     self

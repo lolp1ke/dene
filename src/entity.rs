@@ -38,11 +38,11 @@ impl<E> Entity<E> {
     }
   }
 
-  pub(crate) fn into_any(self) -> AnyEntity {
+  pub(crate) const fn into_any(self) -> AnyEntity {
     self.any
   }
 
-  pub(crate) fn id(&self) -> EntityId {
+  pub(crate) const fn id(&self) -> EntityId {
     self.any.entity_id
   }
 

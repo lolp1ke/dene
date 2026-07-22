@@ -26,6 +26,7 @@ default = [
   "derive_more",
   "futurus-util",
   "rustc-hash",
+  "tracing",
   "taffy",
   "tokio",
   "toml",
@@ -39,6 +40,13 @@ derive_more = [
 ]
 futurus-util = ["futures-util/alloc"]
 rustc-hash = ["rustc-hash/std"]
+tracing = [
+  "tracing-subscriber/env-filter",
+  "tracing-subscriber/std",
+  "tracing-subscriber/registry",
+  "tracing-subscriber/fmt",
+  "tracing-subscriber/ansi",
+]
 taffy = [
   "taffy/flexbox",
   "taffy/grid",
@@ -62,6 +70,8 @@ ropey = { version = "1.6.1", default-features = false }
 rustc-hash = { version = "2.1.3", default-features = false }
 slotmap = { version = "1.1.1", default-features = false }
 smallvec = { version = "1.15.2", default-features = false }
+tracing = { version = "0.1.44", default-features = false }
+tracing-subscriber = { version = "0.3.23", default-features = false }
 taffy = { version = "0.12.2", default-features = false }
 tokio = { version = "1.53.1", default-features = false }
 toml = { version = "1.1.3", default-features = false }
