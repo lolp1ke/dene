@@ -403,26 +403,6 @@ impl App {
     };
   }
 
-  pub(crate) fn dispatch_global_action(&mut self, action: &dyn Action) {
-    let action_ty_id = action.as_any().type_id();
-    if let Some(global_action_listeners) =
-      self.global_action_listeners.remove(&action_ty_id)
-    {
-      for listener in global_action_listeners.iter() {
-        (listener)(action, DispatchPhase::Capture, self);
-      }
-
-      // TODO: prevent event propogation if set so
-      for listener in global_action_listeners.iter().rev() {
-        (listener)(action, DispatchPhase::Bubble, self);
-      }
-
-      self
-        .global_action_listeners
-        .insert(action_ty_id, global_action_listeners);
-    };
-  }
-
   pub fn global<G>(&self) -> &G
   where
     G: Global,

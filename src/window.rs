@@ -8,13 +8,12 @@ use std::{
 
 use smallvec::SmallVec;
 use taffy::AvailableSpace;
-use tracing::info;
 
 use crate::{
   Action, AnyView, App, AppContext, DispatchKeystrokeResult, DispatchNodeId,
   DispatchPhase, DispatchTree, Entity, FocusHandle, FocusId, FocusTabStopMap,
-  InputHandler, IntoElement, KeyDownEvent, KeyUpEvent, KeyboardEvent,
-  Keystroke, LayoutEngine, Modifiers, NoAction, Rect, get_terminal,
+  InputHandler, IntoElement, KeyDownEvent, KeyboardEvent, Keystroke,
+  LayoutEngine, Modifiers, NoAction, Rect, get_terminal,
 };
 
 slotmap::new_key_type! {
@@ -115,7 +114,7 @@ impl Window {
     let dispatch_path =
       &self.current_frame.dispatch_tree.dispatch_path(node_id);
 
-    if let Some(KeyDownEvent { keystroke, is_held }) =
+    if let Some(KeyDownEvent { keystroke, .. }) =
       event.downcast_ref::<KeyDownEvent>()
     {
       cx.propagate_event = true;

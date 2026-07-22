@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 
-use std::{borrow::Cow, io::Write, ops::Range, sync::Arc, time::Duration};
+use std::{ops::Range, sync::Arc, time::Duration};
 
 use ropey::Rope;
 use smallvec::{SmallVec, smallvec};
@@ -68,12 +68,6 @@ impl Render for Input {
               style: CursorStyle::Underscore,
             }],
           }),
-        // .child(state.text.to_string())
-        // .when(
-        //   state.cursor.read(cx).visible
-        //     && state.focus_handle.is_focused(window),
-        //   |this| this.child(div().child(state.cursor_style())),
-        // ),
       )
   }
 }
@@ -119,15 +113,6 @@ impl InputState {
     };
 
     todo!();
-  }
-
-  fn cursor_style(&self) -> &str {
-    // match self.cursor.style {
-    //   CursorStyle::Bar => "▏",
-    //   CursorStyle::Block => "█",
-    //   CursorStyle::Underscore => "_",
-    // }
-    "▏"
   }
 }
 impl InputHandler for Input {
@@ -207,7 +192,6 @@ const CURSOR_BLINK_INTERVAL: Duration = Duration::from_millis(499);
 
 #[derive(Debug)]
 pub(crate) struct CursorBlinking {
-  pub(crate) style: CursorStyle,
   pub(crate) visible: bool,
   step: usize,
   _task: Option<Task<()>>,
@@ -215,7 +199,6 @@ pub(crate) struct CursorBlinking {
 impl CursorBlinking {
   fn new() -> Self {
     Self {
-      style: CursorStyle::Bar,
       visible: true,
       step: 0,
       _task: None,
@@ -261,7 +244,7 @@ pub enum CursorStyle {
 #[derive(Debug)]
 pub struct InputContent {
   pub(crate) text: String,
-  pub(crate) cursors: SmallVec<[Cursor; 2]>,
+  cursors: SmallVec<[Cursor; 2]>,
 }
 impl Element for InputContent {
   type RequestLayoutState = ();
@@ -297,10 +280,10 @@ impl Element for InputContent {
   fn render(
     &mut self,
     bounds: crate::Rect,
-    request_layout: &mut Self::RequestLayoutState,
-    pre_render: &mut Self::PreRenderState,
-    window: &mut Window,
-    cx: &mut App,
+    _: &mut Self::RequestLayoutState,
+    _: &mut Self::PreRenderState,
+    _: &mut Window,
+    _: &mut App,
   ) {
     let mut terminal = get_terminal().write();
 
@@ -368,7 +351,7 @@ impl IntoElement for InputContent {
   }
 }
 #[derive(Debug)]
-pub struct Cursor {
+struct Cursor {
   pub(crate) pos: usize,
   pub(crate) visible: bool,
   pub(crate) style: CursorStyle,

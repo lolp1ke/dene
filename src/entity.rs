@@ -11,8 +11,8 @@ use parking_lot::RwLock;
 use slotmap::{SecondaryMap, SlotMap};
 
 use crate::{
-  AnyElement, AnyView, App, AppContext, Context, FocusHandle, Focusable,
-  IntoElement, Render,
+  AnyView, App, AppContext, Context, FocusHandle, Focusable, IntoElement,
+  Render,
 };
 
 slotmap::new_key_type! {
