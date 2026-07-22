@@ -10,7 +10,7 @@ pub mod event;
 pub(crate) mod executor;
 pub mod focus;
 pub(crate) mod geometry;
-pub(crate) mod global;
+pub mod global;
 pub(crate) mod interactive;
 pub mod keybind;
 pub(crate) mod layout;
