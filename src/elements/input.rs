@@ -8,8 +8,8 @@ use smallvec::{SmallVec, smallvec};
 use crate::{
   App, AppContext, Component, Context, Element, ElementExt, Entity,
   EventDispatcher, FocusHandle, Focusable, InputHandler, InteractiveElement,
-  IntoElement, Keybind, Keystroke, ParentElement, Render, RenderOnce,
-  StyleableElement, Task, Window, div, get_terminal,
+  IntoElement, Keybind, Keystroke, ParentElement, RenderOnce, StyleableElement,
+  Task, Window, div, get_terminal,
 };
 
 mod actions {
@@ -112,6 +112,11 @@ impl IntoElement for Input {
 
   fn into_element(self) -> Self::Element {
     Component::new(self)
+  }
+}
+impl StyleableElement for Input {
+  fn style(&mut self) -> &mut taffy::Style {
+    &mut self.style
   }
 }
 

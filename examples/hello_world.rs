@@ -30,7 +30,7 @@ struct HelloWorld {
 }
 impl HelloWorld {
   fn new(cx: &mut Context<Self>) -> Self {
-    let input = cx.new_entity(|cx| InputState::new(cx));
+    let input = cx.new_entity(InputState::new);
 
     Self {
       focus_handle: cx.focus_handle(),
