@@ -10,10 +10,10 @@ use smallvec::SmallVec;
 use taffy::AvailableSpace;
 
 use crate::{
-  Action, AnyView, App, AppContext, DispatchKeystrokeResult, DispatchNodeId,
-  DispatchPhase, DispatchTree, Entity, FocusHandle, FocusId, FocusTabStopMap,
-  InputHandler, IntoElement, KeyDownEvent, KeyboardEvent, Keystroke,
-  LayoutEngine, Modifiers, NoAction, Rect, get_terminal,
+  Action, AnyView, App, AppContext, Context, DispatchKeystrokeResult,
+  DispatchNodeId, DispatchPhase, DispatchTree, Entity, FocusHandle, FocusId,
+  FocusTabStopMap, InputHandler, IntoElement, KeyDownEvent, KeyboardEvent,
+  Keystroke, LayoutEngine, Modifiers, NoAction, Rect, get_terminal,
 };
 
 slotmap::new_key_type! {
@@ -361,7 +361,7 @@ impl Window {
   ) -> impl 'static + Fn(&AnyEvent, &mut Self, &mut App)
   where
     E: 'static,
-    F: 'static + Fn(&mut E, &AnyEvent, &mut Self, &mut App),
+    F: 'static + Fn(&mut E, &AnyEvent, &mut Self, &mut Context<E>),
   {
     let view = view.clone();
     move |e, window, cx| view.update(cx, |view, cx| f(view, e, window, cx))

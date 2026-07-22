@@ -26,8 +26,10 @@ pub(crate) struct AnsiOverlay {
 #[derive(Debug)]
 pub(crate) struct Terminal {
   pub(crate) stdout: Stdout,
-  front_buffer: Vec<char>,
-  back_buffer: Vec<char>,
+
+  front: Buffer,
+  back: Buffer,
+
   ansi_overlays: Vec<AnsiOverlay>,
   prev_ansi_overlays: Vec<AnsiOverlay>,
   width: u16,
@@ -54,13 +56,11 @@ impl Terminal {
     );
     let (width, height) = Self::size();
     let buf_len = width as usize * height as usize;
-    let front_buffer = vec![' '; buf_len];
-    let back_buffer = vec![' '; buf_len];
 
     Self {
       stdout,
-      front_buffer,
-      back_buffer,
+      front: Buffer::new(buf_len),
+      back: Buffer::new(buf_len),
       ansi_overlays: Vec::new(),
       prev_ansi_overlays: Vec::new(),
       width,
@@ -69,7 +69,7 @@ impl Terminal {
   }
 
   pub(crate) fn clear(&mut self) {
-    self.back_buffer.fill(' ');
+    self.back.clear();
     self.ansi_overlays.clear();
   }
   pub(crate) fn render(&mut self) {
@@ -79,26 +79,51 @@ impl Terminal {
     }
 
     let w = self.width as usize;
-    let total = self.back_buffer.len();
+    let total = self.back.cells.len();
     let mut i = 0;
+    let mut cur_fg = Color::Reset;
+    let mut cur_bg = Color::Reset;
+    let mut changed = false;
+
     while i < total {
-      if self.back_buffer[i] == self.front_buffer[i] {
+      if self.back.cells[i] == self.front.cells[i] {
         i += 1;
         continue;
-      };
-      let start = (i % w) as u16;
+      }
+
+      changed = true;
+      let x = (i % w) as u16;
       let y = (i / w) as u16;
-      let mut buf = String::with_capacity(8);
-      while i < total && self.back_buffer[i] != self.front_buffer[i] {
-        buf.push(self.back_buffer[i]);
+      let run_start = i;
+      let mut text = String::with_capacity(8);
+
+      while i < total && self.back.cells[i] != self.front.cells[i] {
+        text.push(self.back.cells[i].ch);
         i += 1;
         if i % w == 0 {
           break;
         };
       }
-      _ = queue!(self.stdout, cursor::MoveTo(start, y));
-      _ = queue!(self.stdout, style::Print(&buf));
+
+      let cell = &self.back.cells[run_start];
+
+      _ = queue!(self.stdout, cursor::MoveTo(x, y));
+
+      if cell.fg != cur_fg {
+        _ = queue!(self.stdout, style::SetForegroundColor(cell.fg.into()));
+        cur_fg = cell.fg;
+      };
+      if cell.bg != cur_bg {
+        _ = queue!(self.stdout, style::SetBackgroundColor(cell.bg.into()));
+        cur_bg = cell.bg;
+      };
+
+      _ = queue!(self.stdout, style::Print(&text));
     }
+    if changed {
+      _ = queue!(self.stdout, style::ResetColor);
+      _ = queue!(self.stdout, style::SetAttribute(style::Attribute::Reset));
+    };
 
     for overlay in self.ansi_overlays.iter() {
       _ = queue!(self.stdout, cursor::MoveTo(overlay.x, overlay.y));
@@ -106,7 +131,7 @@ impl Terminal {
     }
 
     _ = self.stdout.flush();
-    std::mem::swap(&mut self.front_buffer, &mut self.back_buffer);
+    std::mem::swap(&mut self.front, &mut self.back);
     std::mem::swap(&mut self.ansi_overlays, &mut self.prev_ansi_overlays);
   }
   pub(crate) fn restore(&mut self) {
@@ -126,23 +151,7 @@ impl Terminal {
   where
     S: AsRef<str>,
   {
-    let buf = buf.as_ref();
-    let w = self.width as usize;
-    let h = self.height as usize;
-    let col = x as usize;
-    let row = y as usize;
-    if col >= w || row >= h {
-      return;
-    };
-
-    let start = row * w + col;
-    for (i, ch) in buf.chars().enumerate() {
-      let idx = start + i;
-      if idx > self.back_buffer.len() || (idx % w) < col {
-        break;
-      };
-      self.back_buffer[idx] = ch;
-    }
+    self.back.write_chars(x, y, buf.as_ref(), self.width);
   }
   pub(crate) fn write_ansi_at(
     &mut self,
@@ -157,5 +166,90 @@ impl Terminal {
       ansi: ansi.into(),
       text: text.into(),
     });
+  }
+}
+
+#[derive(Debug)]
+struct Buffer {
+  cells: Vec<Cell>,
+}
+impl Buffer {
+  fn new(len: usize) -> Self {
+    Self {
+      cells: vec![
+        Cell {
+          ch: ' ',
+          fg: Color::Reset,
+          bg: Color::Reset,
+        };
+        len
+      ],
+    }
+  }
+
+  fn clear(&mut self) {
+    for cell in self.cells.iter_mut() {
+      cell.ch = ' ';
+      cell.fg = Color::Reset;
+      cell.bg = Color::Reset;
+    }
+  }
+  fn write_chars(&mut self, x: u16, y: u16, text: &str, w: u16) {
+    let start = (y as usize) * (w as usize) + (x as usize);
+    for (i, ch) in text.chars().enumerate() {
+      let idx = start + i;
+      if idx >= self.cells.len() {
+        break;
+      }
+      self.cells[idx].ch = ch;
+    }
+  }
+  fn write_styled(
+    &mut self,
+    x: u16,
+    y: u16,
+    text: &str,
+    fg: Color,
+    bg: Color,
+    w: u16,
+  ) {
+    let start = (y as usize) * (w as usize) + (x as usize);
+    for (i, ch) in text.chars().enumerate() {
+      let idx = start + i;
+      if idx >= self.cells.len() {
+        break;
+      }
+      let cell = &mut self.cells[idx];
+      cell.ch = ch;
+      cell.fg = fg;
+      cell.bg = bg;
+    }
+  }
+}
+#[derive(Debug)]
+#[derive(Clone, Copy)]
+#[derive(PartialEq)]
+struct Cell {
+  ch: char,
+  fg: Color,
+  bg: Color,
+}
+
+#[derive(Debug)]
+#[derive(Clone, Copy)]
+#[derive(PartialEq)]
+pub enum Color {
+  Reset,
+  Rgb { r: u8, g: u8, b: u8 },
+  Ansi(u8),
+}
+impl From<Color> for crossterm::style::Color {
+  fn from(value: Color) -> Self {
+    use crossterm::style::Color::*;
+    match value {
+      Color::Reset => Reset,
+      Color::Rgb { r, g, b } => Rgb { r, g, b },
+      Color::Ansi(ansi) => AnsiValue(ansi),
+    }
   }
 }

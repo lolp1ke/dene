@@ -19,12 +19,27 @@ mod actions {
     "input",
     [
       Delete,
+      DeleteTillLineStart,
+      DeleteTillLineEnd,
+      DeleteTillWordStart,
+      SelectAll,
+      SelectTillLineStart,
+      SelectTillLineEnd,
+      SelectTillWordStart,
+      SelectTillWordEnd,
+      Copy,
+      Cut,
+      Paste,
+      Undo,
+      Redo,
       Left,
       Right,
       Up,
       Down,
       Home,
       End,
+      Enter,
+      Escape,
     ]
   }
 }
@@ -62,7 +77,7 @@ impl RenderOnce for Input {
 
     div()
       .track_focus(&state.focus_handle)
-      .tab_stop(true)
+      .tab_index(self.tab_index)
       .when(!state.disabled, |this| {
         this
           .on_action(window.listener(&self.state, InputState::delete))
@@ -70,6 +85,8 @@ impl RenderOnce for Input {
           .on_action(window.listener(&self.state, InputState::move_right))
           .on_action(window.listener(&self.state, InputState::move_up))
           .on_action(window.listener(&self.state, InputState::move_down))
+          .on_action(window.listener(&self.state, InputState::enter))
+          .on_action(window.listener(&self.state, InputState::escape))
       })
       .child(
         div()
@@ -113,7 +130,7 @@ impl InputState {
   pub fn new(cx: &mut Context<Self>) -> Self {
     let mut focus_handle = cx.focus_handle();
     focus_handle.tab_stop(true);
-    let cursor_blinker = cx.new_entity(|_| CursorBlinking::new());
+    let cursor_blinker = cx.new_entity(CursorBlinking::new);
 
     Self {
       focus_handle,
@@ -127,35 +144,46 @@ impl InputState {
     }
   }
 
-  fn delete(&mut self, _: &Delete, _: &mut Window, _: &mut App) {
+  fn delete(&mut self, _: &Delete, _: &mut Window, _: &mut Context<Self>) {
     if self.text.len_chars() > 0 && self.cursor_pos > 0 {
       self.cursor_pos -= 1;
       self.text.remove(self.cursor_pos..=self.cursor_pos);
     };
   }
-  fn move_left(&mut self, _: &Left, _: &mut Window, _: &mut App) {
+  fn move_left(&mut self, _: &Left, _: &mut Window, _: &mut Context<Self>) {
     if self.cursor_pos > 0 {
       self.cursor_pos -= 1;
     };
   }
-  fn move_right(&mut self, _: &Right, _: &mut Window, _: &mut App) {
+  fn move_right(&mut self, _: &Right, _: &mut Window, _: &mut Context<Self>) {
     if self.cursor_pos < self.text.len_chars() {
       self.cursor_pos += 1;
     };
   }
-  fn move_up(&mut self, _: &Up, _: &mut Window, _: &mut App) {
+  fn move_up(&mut self, _: &Up, _: &mut Window, _: &mut Context<Self>) {
     if matches!(self.mode, InputMode::SingleLine) {
       return;
     };
 
     todo!();
   }
-  fn move_down(&mut self, _: &Down, _: &mut Window, _: &mut App) {
+  fn move_down(&mut self, _: &Down, _: &mut Window, _: &mut Context<Self>) {
     if matches!(self.mode, InputMode::SingleLine) {
       return;
     };
 
     todo!();
+  }
+  fn enter(&mut self, _: &Enter, _: &mut Window, cx: &mut Context<Self>) {
+    if matches!(self.mode, InputMode::MultiLine) {
+      todo!("insert new line");
+    };
+
+    panic!("a");
+    cx.emit(InputEvent::Submit);
+  }
+  fn escape(&mut self, _: &Escape, _: &mut Window, _: &mut Context<Self>) {
+    self.selection = None;
   }
 }
 impl InputHandler for InputState {
@@ -326,12 +354,14 @@ pub(crate) struct CursorBlinking {
   _task: Option<Task<()>>,
 }
 impl CursorBlinking {
-  fn new() -> Self {
-    Self {
+  fn new(cx: &mut Context<Self>) -> Self {
+    let mut this = Self {
       visible: true,
       step: 0,
       _task: None,
-    }
+    };
+    this.start_blinking(cx);
+    this
   }
 
   fn start_blinking(&mut self, cx: &mut Context<Self>) {
@@ -379,5 +409,7 @@ pub(crate) fn init(cx: &mut App) {
     Keybind::new(Right, [Keystroke::parse("right")], key_context),
     Keybind::new(Up, [Keystroke::parse("up")], key_context),
     Keybind::new(Down, [Keystroke::parse("down")], key_context),
+    Keybind::new(Enter, [Keystroke::parse("return")], key_context),
+    Keybind::new(Escape, [Keystroke::parse("esc")], key_context),
   ]);
 }

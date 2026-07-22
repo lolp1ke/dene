@@ -130,6 +130,15 @@ impl App {
       .expect("failed to init terminal");
     crate::init_tracing();
 
+    let panic_hook = std::panic::take_hook();
+    std::panic::set_hook(Box::new(move |info| {
+      if let Some(t) = TERM.get() {
+        t.write().restore();
+      };
+
+      (panic_hook)(info);
+    }));
+
     let mut keybinds = Keybinds(Vec::new());
     keybinds.extend([
       Keybind {
