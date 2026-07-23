@@ -415,6 +415,14 @@ impl App {
     };
   }
 
+  pub fn set_global<G>(&mut self, global: G)
+  where
+    G: Global,
+  {
+    self
+      .globals_by_type
+      .insert(TypeId::of::<G>(), Box::new(global));
+  }
   pub fn global<G>(&self) -> &G
   where
     G: Global,

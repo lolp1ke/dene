@@ -42,7 +42,7 @@ impl<E> Entity<E> {
     self.any
   }
 
-  pub(crate) const fn id(&self) -> EntityId {
+  pub const fn id(&self) -> EntityId {
     self.any.entity_id
   }
 
