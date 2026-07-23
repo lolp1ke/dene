@@ -202,6 +202,7 @@ impl App {
   pub fn to_async(&self) -> AsyncApp {
     AsyncApp {
       app: self.this.clone(),
+      foreground_executor: self.foreground_executor.clone(),
     }
   }
 
