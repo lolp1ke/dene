@@ -29,6 +29,7 @@ pub(crate) fn init_tracing() {
     .event_format(tracing_subscriber::fmt::format().pretty())
     .with_writer(Mutex::new(pty_pipe))
     .with_filter(env_filter)
-    .with_filter(filter_fn(|metadata| metadata.target().starts_with("dene")));
+    // .with_filter(filter_fn(|metadata| metadata.target().starts_with("dene")))
+    ;
   tracing_subscriber::registry().with(layer).init();
 }
