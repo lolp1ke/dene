@@ -204,7 +204,7 @@ impl InputHandler for InputState {
     cx: &mut crate::App,
   ) {
     self.text.insert(self.cursor_pos, str);
-    self.cursor_pos += 1;
+    self.cursor_pos += str.len();
   }
   fn selected_text(
     &mut self,
@@ -252,17 +252,18 @@ impl Element for InputContent {
     window: &mut Window,
     cx: &mut App,
   ) -> (taffy::NodeId, Self::RequestLayoutState) {
-    let width = self.text.len() as f32;
-    let height = self.text.lines().count() as f32;
     let mut style = taffy::Style::DEFAULT;
-    style.min_size = taffy::Size {
-      width: taffy::Dimension::length(width),
-      height: taffy::Dimension::length(height.max(1.)),
-    };
-    style.size = taffy::Size {
-      width: taffy::Dimension::length(width),
-      height: taffy::Dimension::length(height),
-    };
+    // let width = self.text.len() as f32;
+    // let height = self.text.lines().count() as f32;
+    // style.min_size = taffy::Size {
+    //   width: taffy::Dimension::length(width),
+    //   height: taffy::Dimension::length(height.max(1.)),
+    // };
+    // style.size = taffy::Size {
+    //   width: taffy::Dimension::length(width),
+    //   height: taffy::Dimension::length(height),
+    // };
+    style.size.width = taffy::Dimension::percent(1.);
     let node_id = window.request_layout(style, &[], cx);
     (node_id, ())
   }

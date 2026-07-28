@@ -266,6 +266,27 @@ bitflags::bitflags! {
     const META = 1 << 4;
   }
 }
+impl From<crossterm::event::KeyModifiers> for Modifiers {
+  fn from(value: crossterm::event::KeyModifiers) -> Self {
+    use crossterm::event::KeyModifiers;
+    let mut this = Self::NONE;
+    if value.intersects(KeyModifiers::SHIFT) {
+      this |= Self::SHIFT;
+    };
+    if value.intersects(KeyModifiers::CONTROL) {
+      this |= Self::CONTROL;
+    };
+    if value.intersects(KeyModifiers::ALT) {
+      this |= Self::ALT;
+    };
+    if value.intersects(
+      KeyModifiers::HYPER | KeyModifiers::META | KeyModifiers::SUPER,
+    ) {
+      this |= Self::META;
+    };
+    this
+  }
+}
 
 const PRECENDENCE_OR: u32 = 2;
 const PRECENDENCE_AND: u32 = 3;

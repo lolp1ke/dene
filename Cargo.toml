@@ -37,6 +37,10 @@ derive_more = [
   "derive_more/debug",
   "derive_more/deref",
   "derive_more/deref_mut",
+  "derive_more/add",
+  "derive_more/add_assign",
+  "derive_more/mul",
+  "derive_more/mul_assign",
 ]
 futurus-util = ["futures-util/alloc"]
 rustc-hash = ["rustc-hash/std"]

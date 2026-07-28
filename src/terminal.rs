@@ -42,8 +42,8 @@ impl Terminal {
     _ = execute!(
       stdout,
       terminal::EnterAlternateScreen,
+      terminal::Clear(terminal::ClearType::All),
       cursor::Hide,
-      terminal::Clear(terminal::ClearType::All)
     );
     _ = execute!(
       stdout,
@@ -52,7 +52,8 @@ impl Terminal {
           | event::KeyboardEnhancementFlags::REPORT_EVENT_TYPES
           | event::KeyboardEnhancementFlags::REPORT_ALTERNATE_KEYS
           | event::KeyboardEnhancementFlags::REPORT_ALL_KEYS_AS_ESCAPE_CODES
-      )
+      ),
+      event::EnableMouseCapture,
     );
     let (width, height) = Self::size();
     let buf_len = width as usize * height as usize;
@@ -139,9 +140,10 @@ impl Terminal {
     _ = execute!(
       self.stdout,
       cursor::MoveTo(0, 0),
-      terminal::Clear(terminal::ClearType::All)
+      terminal::Clear(terminal::ClearType::All),
+      event::DisableMouseCapture,
     );
-    _ = execute!(self.stdout, cursor::Show, terminal::LeaveAlternateScreen);
+    _ = execute!(self.stdout, cursor::Show, terminal::LeaveAlternateScreen,);
   }
   pub(crate) fn size() -> (u16, u16) {
     terminal::size().unwrap_or((0, 0))

@@ -3,8 +3,9 @@
 use smallvec::SmallVec;
 
 use crate::{
-  AnyElement, App, Element, InteractiveElement, Interactivity, IntoElement,
-  ParentElement, Rect, StyleableElement, Window, get_terminal,
+  AnyElement, App, Element, Hitbox, InteractiveElement, Interactivity,
+  IntoElement, ParentElement, Pos, Rect, Size, StyleableElement, Window,
+  get_terminal,
 };
 
 #[derive(Debug)]
@@ -15,7 +16,7 @@ pub struct Div {
 }
 impl Element for Div {
   type RequestLayoutState = SmallVec<[taffy::NodeId; 8]>;
-  type PreRenderState = ();
+  type PreRenderState = Option<Hitbox>;
 
   fn request_layout(
     &mut self,
@@ -33,6 +34,21 @@ impl Element for Div {
       self.interactivity.tracking_focus_handle = Some(focus_handle);
     };
 
+    if let Some(scroll_handle) =
+      self.interactivity.tracking_scroll_handle.as_ref()
+    {
+      self.interactivity.scroll_offset =
+        Some(scroll_handle.0.borrow().offset.clone());
+    } else if matches!(
+      self.interactivity.base_style.overflow.x,
+      taffy::Overflow::Scroll
+    ) || matches!(
+      self.interactivity.base_style.overflow.y,
+      taffy::Overflow::Scroll
+    ) {
+      todo!();
+    };
+
     let child_node_ids = self
       .children
       .iter_mut()
@@ -48,8 +64,8 @@ impl Element for Div {
   }
   fn pre_render(
     &mut self,
-    _: Rect,
-    _: &mut Self::RequestLayoutState,
+    bounds: Rect,
+    request_layout: &mut Self::RequestLayoutState,
     window: &mut Window,
     cx: &mut App,
   ) -> Self::PreRenderState {
@@ -59,19 +75,44 @@ impl Element for Div {
       window.set_focus_handle(focus_handle);
     };
 
+    let mut child_min = Pos {
+      x: u16::MAX,
+      y: u16::MAX,
+    };
+    let mut child_max = Pos::default();
+    let content_size = if request_layout.is_empty() {
+      bounds.as_size()
+    } else if let Some(scroll_handle) =
+      self.interactivity.tracking_scroll_handle.as_ref()
+    {
+      todo!();
+    } else {
+      for child_node_id in request_layout.iter() {
+        let child_bounds = window.layout_bounds(*child_node_id);
+        child_min = child_min.min(child_bounds.as_pos());
+        child_max = child_max.max(child_bounds.as_bottom_right_pos());
+      }
+      Size {
+        width: child_max.x.saturating_sub(child_min.x),
+        height: child_max.y.saturating_sub(child_min.y),
+      }
+    };
+
     if matches!(self.interactivity.base_style.display, taffy::Display::None) {
-      return;
+      return None;
     };
 
     for child in self.children.iter_mut() {
       child.pre_render(window, cx);
     }
+
+    None
   }
   fn render(
     &mut self,
     bounds: Rect,
     _: &mut Self::RequestLayoutState,
-    _: &mut Self::PreRenderState,
+    pre_render: &mut Self::PreRenderState,
     window: &mut Window,
     cx: &mut App,
   ) {
@@ -92,6 +133,9 @@ impl Element for Div {
     };
 
     window.with_tab_group(tab_index, |window| {
+      if let Some(hitbox) = pre_render.as_ref() {
+        self.interactivity.apply_mouse_listeners(hitbox, window);
+      };
       self.interactivity.apply_keyboard_listeners(window);
       for child in self.children.iter_mut() {
         child.render(window, cx);

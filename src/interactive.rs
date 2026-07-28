@@ -2,7 +2,7 @@
 
 use std::{any::Any, ops::Range};
 
-use crate::{App, Entity, Keystroke, Window};
+use crate::{App, Entity, Keystroke, Modifiers, Pos, Window};
 
 pub(crate) trait InputEvent: 'static {
   fn to_dene_input(self) -> DeneInput;
@@ -12,11 +12,13 @@ pub(crate) trait MouseEvent: InputEvent {}
 
 #[derive(Debug)]
 pub(crate) enum DeneInput {
+  MouseButtonDown(MouseButtonDownEvent),
+  MouseButtonUp(MouseButtonUpEvent),
+  MouseMove(Pos),
+  ScrollDown(ScrollEvent),
+  ScrollUp(ScrollEvent),
   KeyDown(KeyDownEvent),
   KeyUp(KeyUpEvent),
-  MouseButtonDown(),
-  MouseButtonUp(),
-  MouseMove(),
 }
 impl DeneInput {
   pub(crate) fn keyboard_event(&self) -> Option<&dyn Any> {
@@ -28,9 +30,67 @@ impl DeneInput {
   }
   pub(crate) fn mouse_event(&self) -> Option<&dyn Any> {
     match self {
+      Self::MouseButtonDown(event) => Some(event),
+      Self::MouseButtonUp(event) => Some(event),
+      Self::MouseMove(event) => Some(event),
+      Self::ScrollDown(event) | Self::ScrollUp(event) => Some(event),
       _ => None,
     }
   }
+}
+
+#[derive(Debug)]
+#[derive(Clone, Copy)]
+#[derive(PartialEq)]
+#[derive(Default)]
+pub enum MouseButton {
+  #[default]
+  Left,
+  Middle,
+  Right,
+}
+impl From<crossterm::event::MouseButton> for MouseButton {
+  fn from(value: crossterm::event::MouseButton) -> Self {
+    match value {
+      crossterm::event::MouseButton::Left => Self::Left,
+      crossterm::event::MouseButton::Middle => Self::Middle,
+      crossterm::event::MouseButton::Right => Self::Right,
+    }
+  }
+}
+
+#[derive(Debug)]
+#[derive(Clone)]
+pub struct MouseButtonDownEvent {
+  pub(crate) button: MouseButton,
+  pub(crate) pos: Pos,
+  pub(crate) modifiers: Modifiers,
+}
+impl InputEvent for MouseButtonDownEvent {
+  fn to_dene_input(self) -> DeneInput {
+    DeneInput::MouseButtonDown(self)
+  }
+}
+impl MouseEvent for MouseButtonDownEvent {}
+#[derive(Debug)]
+#[derive(Clone)]
+pub struct MouseButtonUpEvent {
+  pub(crate) button: MouseButton,
+  pub(crate) pos: Pos,
+  pub(crate) modifiers: Modifiers,
+}
+impl InputEvent for MouseButtonUpEvent {
+  fn to_dene_input(self) -> DeneInput {
+    DeneInput::MouseButtonUp(self)
+  }
+}
+impl MouseEvent for MouseButtonUpEvent {}
+
+#[derive(Debug)]
+#[derive(Clone)]
+pub struct ScrollEvent {
+  pub(crate) pos: Pos,
+  pub(crate) modifiers: Modifiers,
 }
 
 #[derive(Debug)]

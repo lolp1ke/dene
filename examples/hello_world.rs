@@ -36,7 +36,9 @@ impl HelloWorld {
 
     cx.on_event(input.clone(), |input, event: &InputEvent, cx| {
       match event {
-        InputEvent::Submit => print!("{:?}", input.read(cx).text()),
+        InputEvent::Submit => {
+          print!("EVENT HAPPENED {:?}", input.read(cx).text());
+        }
         _ => {}
       };
 

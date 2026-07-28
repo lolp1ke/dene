@@ -26,8 +26,9 @@ use crate::{
   DeneInput, DispatchPhase, Entity, EntityId, EntityMap, EventDispatcher,
   EventDispatcherSet, FocusHandle, FocusMap, FocusNext, FocusPrev,
   ForegroundExecutor, ForegroundTask, Global, KeyDownEvent, KeyUpEvent,
-  Keybind, Keybinds, Keystroke, Quit, Render, TERM, Task, Terminal, Window,
-  WindowHandle, WindowId, WindowOptions, elements, get_terminal,
+  Keybind, Keybinds, Keystroke, MouseButtonDownEvent, MouseButtonUpEvent, Pos,
+  Quit, Render, ScrollEvent, TERM, Task, Terminal, Window, WindowHandle,
+  WindowId, WindowOptions, elements, get_terminal,
 };
 
 mod async_app;
@@ -308,6 +309,48 @@ impl App {
       }));
   }
 
+  fn handle_mouse_event(&mut self, mouse_event: term_event::MouseEvent) {
+    let pos = Pos {
+      x: mouse_event.column,
+      y: mouse_event.row,
+    };
+    let modifiers = mouse_event.modifiers.into();
+    let dene_input = match mouse_event.kind {
+      term_event::MouseEventKind::Down(button) => {
+        DeneInput::MouseButtonDown(MouseButtonDownEvent {
+          button: button.into(),
+          pos,
+          modifiers,
+        })
+      }
+      term_event::MouseEventKind::Up(button) => {
+        DeneInput::MouseButtonUp(MouseButtonUpEvent {
+          button: button.into(),
+          pos,
+          modifiers,
+        })
+      }
+      term_event::MouseEventKind::Moved => DeneInput::MouseMove(pos),
+      term_event::MouseEventKind::ScrollDown => {
+        DeneInput::ScrollDown(ScrollEvent { pos, modifiers })
+      }
+      term_event::MouseEventKind::ScrollUp => {
+        DeneInput::ScrollUp(ScrollEvent { pos, modifiers })
+      }
+      other => {
+        tracing::warn!("not support yet event: {:?}", other);
+        return;
+      }
+    };
+
+    if let Some(active_window) = self.active_window
+      && let Some(mouse_event) = dene_input.mouse_event()
+    {
+      _ = active_window.update(self, |_, window, cx| {
+        window.dispatch_mouse_event(mouse_event, cx);
+      });
+    };
+  }
   fn handle_key_event(&mut self, key_event: term_event::KeyEvent) {
     use term_event::KeyModifiers;
 
@@ -399,6 +442,9 @@ impl App {
   }
   fn handle_event(&mut self, event: term_event::Event) {
     match event {
+      term_event::Event::Mouse(mouse_event) => {
+        self.handle_mouse_event(mouse_event);
+      }
       term_event::Event::Key(key_event) => {
         self.handle_key_event(key_event);
       }

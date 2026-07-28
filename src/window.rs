@@ -13,7 +13,8 @@ use crate::{
   Action, AnyView, App, AppContext, Context, DispatchKeystrokeResult,
   DispatchNodeId, DispatchPhase, DispatchTree, Entity, FocusHandle, FocusId,
   FocusTabStopMap, InputHandler, IntoElement, KeyDownEvent, KeyboardEvent,
-  Keystroke, LayoutEngine, Modifiers, NoAction, Rect, get_terminal,
+  Keystroke, LayoutEngine, Modifiers, MouseButtonDownEvent, MouseEvent,
+  NoAction, Rect, get_terminal,
 };
 
 slotmap::new_key_type! {
@@ -90,6 +91,9 @@ impl Window {
     self.layout_engine.layout_bounds(node_id)
   }
 
+  pub(crate) fn dispatch_mouse_event(&mut self, event: &dyn Any, cx: &mut App) {
+    tracing::info!("{:?}", event.downcast_ref::<MouseButtonDownEvent>());
+  }
   pub(crate) fn dispatch_keyboard_event(
     &mut self,
     event: &dyn Any,
@@ -98,17 +102,6 @@ impl Window {
     if self.dirty {
       self.render(cx);
     };
-
-    // let keystroke = event
-    //   .downcast_ref::<KeyDownEvent>()
-    //   .map(|e| e.keystroke.clone())
-    //   .unwrap_or_else(|| {
-    //     event
-    //       .downcast_ref::<KeyUpEvent>()
-    //       .unwrap()
-    //       .keystroke
-    //       .clone()
-    //   });
 
     let node_id = self.focus_in_current_frame(self.focus);
     let dispatch_path =
@@ -258,14 +251,27 @@ impl Window {
     }
   }
 
-  pub(crate) fn on_key_event<F, KeyEvent>(&mut self, listener: F)
+  pub(crate) fn on_mouse_event<F, Event>(&mut self, listener: F)
   where
-    F: 'static + Fn(&KeyEvent, DispatchPhase, &mut Self, &mut App),
-    KeyEvent: KeyboardEvent,
+    F: 'static + Fn(&Event, DispatchPhase, &mut Window, &mut App),
+    Event: MouseEvent,
+  {
+    self.next_frame.mouse_listeners.push(Box::new(
+      move |event, phase, window, cx| {
+        if let Some(event) = event.downcast_ref::<Event>() {
+          (listener)(event, phase, window, cx);
+        };
+      },
+    ));
+  }
+  pub(crate) fn on_key_event<F, Event>(&mut self, listener: F)
+  where
+    F: 'static + Fn(&Event, DispatchPhase, &mut Self, &mut App),
+    Event: KeyboardEvent,
   {
     self.next_frame.dispatch_tree.on_key_event(Rc::new(
       move |event, phase, window, cx| {
-        if let Some(event) = event.downcast_ref::<KeyEvent>() {
+        if let Some(event) = event.downcast_ref::<Event>() {
           (listener)(event, phase, window, cx);
         };
       },
@@ -368,11 +374,16 @@ impl Window {
   }
 }
 
+type MouseListener =
+  Box<dyn 'static + FnMut(&dyn Any, DispatchPhase, &mut Window, &mut App)>;
+
 #[derive(derive_more::Debug)]
 pub(crate) struct Frame {
   focus: Option<FocusId>,
   pub(crate) dispatch_tree: DispatchTree,
   pub(crate) pending_keystrokes: SmallVec<[Keystroke; 2]>,
+  #[debug(skip)]
+  pub(crate) mouse_listeners: Vec<MouseListener>,
   #[debug(skip)]
   pub(crate) input_handlers: Vec<Box<dyn InputHandler>>,
   pub(crate) tab_stop_map: FocusTabStopMap,
@@ -383,6 +394,7 @@ impl Frame {
       focus: None,
       dispatch_tree,
       pending_keystrokes: Default::default(),
+      mouse_listeners: Default::default(),
       input_handlers: Default::default(),
       tab_stop_map: Default::default(),
     }

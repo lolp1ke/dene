@@ -2,13 +2,16 @@
 
 use std::{
   any::{Any, TypeId},
+  cell::RefCell,
   fmt::Debug,
   mem,
+  rc::Rc,
 };
 
 use crate::{
   Action, App, Context, DispatchNodeId, DispatchPhase, FocusHandle, FocusNext,
-  FocusPrev, KeyDownEvent, KeyUpEvent, Rect, Window,
+  FocusPrev, Hitbox, KeyDownEvent, KeyUpEvent, MouseButton,
+  MouseButtonDownEvent, MouseButtonUpEvent, Rect, ScrollHandle, Window,
 };
 
 pub trait Render: 'static + Sized {
@@ -339,6 +342,14 @@ impl Debug for dyn ElementObject {
   }
 }
 
+type MouseButtonDownListener = Box<
+  dyn 'static
+    + Fn(&MouseButtonDownEvent, DispatchPhase, &Hitbox, &mut Window, &mut App),
+>;
+type MouseButtonUpListener = Box<
+  dyn 'static
+    + Fn(&MouseButtonUpEvent, DispatchPhase, &Hitbox, &mut Window, &mut App),
+>;
 type KeyDownListener =
   Box<dyn 'static + Fn(&KeyDownEvent, DispatchPhase, &mut Window, &mut App)>;
 type KeyUpListener =
@@ -350,12 +361,19 @@ type ActionListener =
 #[derive(Default)]
 pub struct Interactivity {
   pub(crate) tracking_focus_handle: Option<FocusHandle>,
+  pub(crate) scroll_offset: Option<Rc<RefCell<[u16; 2]>>>,
+  pub(crate) tracking_scroll_handle: Option<ScrollHandle>,
   pub(crate) focusable: bool,
   pub(crate) tab_index: Option<isize>,
   pub(crate) tab_stop: bool,
 
   #[debug(skip)]
   pub(crate) base_style: taffy::Style,
+
+  #[debug(skip)]
+  pub(crate) mouse_button_down_listeners: Vec<MouseButtonDownListener>,
+  #[debug(skip)]
+  pub(crate) mouse_button_up_listeners: Vec<MouseButtonUpListener>,
 
   #[debug(skip)]
   pub(crate) key_down_listener: Vec<KeyDownListener>,
@@ -365,6 +383,33 @@ pub struct Interactivity {
   pub(crate) action_listeners: Vec<(TypeId, ActionListener)>,
 }
 impl Interactivity {
+  pub(crate) fn apply_mouse_listeners(
+    &mut self,
+    hitbox: &Hitbox,
+    window: &mut Window,
+  ) {
+    let mouse_button_down_listeners =
+      mem::take(&mut self.mouse_button_down_listeners);
+    let mouse_button_up_listeners =
+      mem::take(&mut self.mouse_button_up_listeners);
+
+    for listener in mouse_button_down_listeners.into_iter() {
+      let hitbox = hitbox.clone();
+      window.on_mouse_event(
+        move |event: &MouseButtonDownEvent, phase, window, cx| {
+          (listener)(event, phase, &hitbox, window, cx);
+        },
+      );
+    }
+    for listener in mouse_button_up_listeners.into_iter() {
+      let hitbox = hitbox.clone();
+      window.on_mouse_event(
+        move |event: &MouseButtonUpEvent, phase, window, cx| {
+          (listener)(event, phase, &hitbox, window, cx);
+        },
+      );
+    }
+  }
   pub(crate) fn apply_keyboard_listeners(&mut self, window: &mut Window) {
     let key_down_listeners = mem::take(&mut self.key_down_listener);
     let key_up_listeners = mem::take(&mut self.key_up_listener);
@@ -388,6 +433,70 @@ impl Interactivity {
       window.focus_prev();
       cx.propagate_event = false;
     });
+  }
+
+  fn on_mouse_button_down<F>(&mut self, button: MouseButton, listener: F)
+  where
+    F: 'static + Fn(&MouseButtonDownEvent, &mut Window, &mut App),
+  {
+    self.mouse_button_down_listeners.push(Box::new(
+      move |event, phase, hitbox, window, cx| {
+        if matches!(phase, DispatchPhase::Bubble)
+          && event.button == button
+          && hitbox.is_hovered(window)
+        {
+          (listener)(event, window, cx);
+        };
+      },
+    ));
+  }
+  fn capture_on_mouse_button_down<F>(
+    &mut self,
+    button: MouseButton,
+    listener: F,
+  ) where
+    F: 'static + Fn(&MouseButtonDownEvent, &mut Window, &mut App),
+  {
+    self.mouse_button_down_listeners.push(Box::new(
+      move |event, phase, hitbox, window, cx| {
+        if matches!(phase, DispatchPhase::Capture)
+          && event.button == button
+          && hitbox.is_hovered(window)
+        {
+          (listener)(event, window, cx);
+        };
+      },
+    ));
+  }
+  fn on_mouse_button_up<F>(&mut self, button: MouseButton, listener: F)
+  where
+    F: 'static + Fn(&MouseButtonUpEvent, &mut Window, &mut App),
+  {
+    self.mouse_button_up_listeners.push(Box::new(
+      move |event, phase, hitbox, window, cx| {
+        if matches!(phase, DispatchPhase::Bubble)
+          && event.button == button
+          && hitbox.is_hovered(window)
+        {
+          (listener)(event, window, cx);
+        };
+      },
+    ));
+  }
+  fn capture_on_mouse_button_up<F>(&mut self, button: MouseButton, listener: F)
+  where
+    F: 'static + Fn(&MouseButtonUpEvent, &mut Window, &mut App),
+  {
+    self.mouse_button_up_listeners.push(Box::new(
+      move |event, phase, hitbox, window, cx| {
+        if matches!(phase, DispatchPhase::Capture)
+          && event.button == button
+          && hitbox.is_hovered(window)
+        {
+          (listener)(event, window, cx);
+        };
+      },
+    ));
   }
 
   fn on_key_down<F>(&mut self, listener: F)
@@ -471,6 +580,10 @@ pub trait InteractiveElement: Sized {
   }
   fn tab_stop(mut self, tab_stop: bool) -> Self {
     self.interactivity().tab_stop = tab_stop;
+    self
+  }
+  fn track_scroll(mut self, scroll_handle: &ScrollHandle) -> Self {
+    self.interactivity().tracking_scroll_handle = Some(scroll_handle.clone());
     self
   }
 
