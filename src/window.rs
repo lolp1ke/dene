@@ -14,7 +14,7 @@ use crate::{
   DispatchNodeId, DispatchPhase, DispatchTree, Entity, FocusHandle, FocusId,
   FocusTabStopMap, InputHandler, IntoElement, KeyDownEvent, KeyboardEvent,
   Keystroke, LayoutEngine, Modifiers, MouseButtonDownEvent, MouseEvent,
-  NoAction, Rect, get_terminal,
+  NoAction, Pos, Rect, get_terminal,
 };
 
 slotmap::new_key_type! {
@@ -33,6 +33,9 @@ pub struct Window {
   pub(crate) next_frame: Frame,
 
   pub(crate) layout_engine: LayoutEngine,
+
+  pub(crate) scroll_offset_stack: Vec<Pos>,
+  pub(crate) mouse_position: Pos,
 }
 impl Window {
   pub(crate) fn new(opts: WindowOptions, cx: &mut App) -> Self {
@@ -52,6 +55,8 @@ impl Window {
         cx.keybinds.clone(),
       )),
       layout_engine: LayoutEngine::new(),
+      scroll_offset_stack: Default::default(),
+      mouse_position: Default::default(),
     }
   }
 
@@ -92,7 +97,25 @@ impl Window {
   }
 
   pub(crate) fn dispatch_mouse_event(&mut self, event: &dyn Any, cx: &mut App) {
-    tracing::info!("{:?}", event.downcast_ref::<MouseButtonDownEvent>());
+    let mut mouse_listeners =
+      std::mem::take(&mut self.current_frame.mouse_listeners);
+
+    for listener in mouse_listeners.iter_mut() {
+      (listener)(event, DispatchPhase::Capture, self, cx);
+      if !cx.propagate_event {
+        break;
+      };
+    }
+
+    if cx.propagate_event {
+      for listener in mouse_listeners.iter_mut().rev() {
+        (listener)(event, DispatchPhase::Bubble, self, cx);
+        if !cx.propagate_event {
+          break;
+        };
+      }
+    };
+    self.current_frame.mouse_listeners.extend(mouse_listeners);
   }
   pub(crate) fn dispatch_keyboard_event(
     &mut self,
@@ -371,6 +394,14 @@ impl Window {
   {
     let view = view.clone();
     move |e, window, cx| view.update(cx, |view, cx| f(view, e, window, cx))
+  }
+
+  pub(crate) fn accumilated_scroll_offset(&self) -> Pos {
+    let mut acc = Pos::default();
+    for offset in self.scroll_offset_stack.iter() {
+      acc += *offset;
+    }
+    acc
   }
 }
 

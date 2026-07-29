@@ -8,8 +8,8 @@ use smallvec::{SmallVec, smallvec};
 use crate::{
   App, AppContext, Component, Context, Element, ElementExt, Entity,
   EventDispatcher, FocusHandle, Focusable, InputHandler, InteractiveElement,
-  IntoElement, Keybind, Keystroke, ParentElement, RenderOnce, StyleableElement,
-  Task, Window, div, get_terminal,
+  IntoElement, Keybind, Keystroke, ParentElement, RenderOnce, ScrollHandle,
+  StyleableElement, Task, Window, div, get_terminal,
 };
 
 mod actions {
@@ -74,6 +74,7 @@ impl Input {
 impl RenderOnce for Input {
   fn render(self, window: &mut Window, cx: &mut App) -> impl IntoElement {
     let state = self.state.read(cx);
+    window.handle_input(&state.focus_handle, self.state.clone());
 
     div()
       .track_focus(&state.focus_handle)
@@ -95,6 +96,7 @@ impl RenderOnce for Input {
           .min_h(3.)
           .max_w(32.)
           .max_h(3.)
+          .track_scroll(&state.scroll_handle)
           .child(InputContent {
             text: state.text.to_string(),
             cursors: smallvec![Cursor {
@@ -103,6 +105,7 @@ impl RenderOnce for Input {
                 && state.focus_handle.is_focused(window),
               style: CursorStyle::Underscore,
             }],
+            scroll_handle: state.scroll_handle.clone(),
           }),
       )
   }
@@ -123,6 +126,7 @@ impl StyleableElement for Input {
 #[derive(Debug)]
 pub struct InputState {
   focus_handle: FocusHandle,
+  scroll_handle: ScrollHandle,
   text: Rope,
   placeholder: Option<Arc<str>>,
   mode: InputMode,
@@ -136,9 +140,12 @@ impl InputState {
     let mut focus_handle = cx.focus_handle();
     focus_handle.tab_stop(true);
     let cursor_blinker = cx.new_entity(CursorBlinking::new);
+    let scroll_handle =
+      ScrollHandle::new([taffy::Overflow::Scroll, taffy::Overflow::Hidden]);
 
     Self {
       focus_handle,
+      scroll_handle,
       text: Rope::new(),
       placeholder: None,
       mode: InputMode::SingleLine,
@@ -149,20 +156,39 @@ impl InputState {
     }
   }
 
+  fn ensure_cursor_visible(&self) {
+    let inner = self.scroll_handle.0.borrow();
+    let viewport_width = inner.bounds.width as usize;
+    if viewport_width == 0 {
+      return;
+    }
+    let mut offset = inner.offset.borrow_mut();
+    let scroll_x = offset.x as usize;
+    const SAFE_MARGIN: usize = 3;
+    if self.cursor_pos < scroll_x + SAFE_MARGIN {
+      offset.x = self.cursor_pos.saturating_sub(SAFE_MARGIN) as u16;
+    } else if self.cursor_pos >= scroll_x + viewport_width {
+      offset.x = (self.cursor_pos - viewport_width + 1) as u16;
+    }
+  }
+
   fn delete(&mut self, _: &Delete, _: &mut Window, _: &mut Context<Self>) {
     if self.text.len_chars() > 0 && self.cursor_pos > 0 {
       self.cursor_pos -= 1;
       self.text.remove(self.cursor_pos..=self.cursor_pos);
+      self.ensure_cursor_visible();
     };
   }
   fn move_left(&mut self, _: &Left, _: &mut Window, _: &mut Context<Self>) {
     if self.cursor_pos > 0 {
       self.cursor_pos -= 1;
+      self.ensure_cursor_visible();
     };
   }
   fn move_right(&mut self, _: &Right, _: &mut Window, _: &mut Context<Self>) {
     if self.cursor_pos < self.text.len_chars() {
       self.cursor_pos += 1;
+      self.ensure_cursor_visible();
     };
   }
   fn move_up(&mut self, _: &Up, _: &mut Window, _: &mut Context<Self>) {
@@ -184,27 +210,23 @@ impl InputState {
       todo!("insert new line");
     };
 
-    cx.emit(InputEvent::Submit);
+    cx.emit(InputEvent::Submit(self.text.to_string()));
   }
   fn escape(&mut self, _: &Escape, _: &mut Window, _: &mut Context<Self>) {
     self.selection = None;
   }
 }
-impl InputState {
-  pub fn text(&self) -> String {
-    self.text.to_string()
-  }
-}
 impl InputHandler for InputState {
   fn insert_str(
     &mut self,
-    range: Option<Range<usize>>,
+    _: Option<Range<usize>>,
     str: &str,
-    window: &mut Window,
-    cx: &mut crate::App,
+    _: &mut Window,
+    _: &mut crate::App,
   ) {
     self.text.insert(self.cursor_pos, str);
-    self.cursor_pos += str.len();
+    self.cursor_pos += str.chars().count();
+    self.ensure_cursor_visible();
   }
   fn selected_text(
     &mut self,
@@ -234,7 +256,7 @@ pub enum InputMode {
 }
 #[derive(Debug)]
 pub enum InputEvent {
-  Submit,
+  Submit(String),
   Change,
 }
 
@@ -242,6 +264,7 @@ pub enum InputEvent {
 pub struct InputContent {
   pub(crate) text: String,
   cursors: SmallVec<[Cursor; 2]>,
+  scroll_handle: ScrollHandle,
 }
 impl Element for InputContent {
   type RequestLayoutState = ();
@@ -253,16 +276,6 @@ impl Element for InputContent {
     cx: &mut App,
   ) -> (taffy::NodeId, Self::RequestLayoutState) {
     let mut style = taffy::Style::DEFAULT;
-    // let width = self.text.len() as f32;
-    // let height = self.text.lines().count() as f32;
-    // style.min_size = taffy::Size {
-    //   width: taffy::Dimension::length(width),
-    //   height: taffy::Dimension::length(height.max(1.)),
-    // };
-    // style.size = taffy::Size {
-    //   width: taffy::Dimension::length(width),
-    //   height: taffy::Dimension::length(height),
-    // };
     style.size.width = taffy::Dimension::percent(1.);
     let node_id = window.request_layout(style, &[], cx);
     (node_id, ())
@@ -301,6 +314,21 @@ impl Element for InputContent {
 
       let x = bounds.x + cursor.pos as u16;
       let y = bounds.y;
+
+      // let mut clipped = false;
+      // for rect in terminal.clip_rect_stack.iter() {
+      //   if x < rect.x
+      //     || x >= rect.x + rect.width
+      //     || y < rect.y
+      //     || y >= rect.y + rect.height
+      //   {
+      //     clipped = true;
+      //     break;
+      //   }
+      // }
+      // if clipped {
+      //   continue;
+      // }
 
       match cursor.style {
         CursorStyle::Bar => {

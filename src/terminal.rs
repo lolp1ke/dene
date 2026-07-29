@@ -8,6 +8,8 @@ use std::{
 use crossterm::{cursor, event, execute, queue, style, terminal};
 use parking_lot::RwLock;
 
+use crate::Rect;
+
 pub(crate) static TERM: OnceLock<RwLock<Terminal>> = OnceLock::new();
 
 #[inline]
@@ -26,14 +28,16 @@ pub(crate) struct AnsiOverlay {
 #[derive(Debug)]
 pub(crate) struct Terminal {
   pub(crate) stdout: Stdout,
+  width: u16,
+  height: u16,
+
+  pub(crate) clip_rect_stack: Vec<Rect>,
 
   front: Buffer,
   back: Buffer,
 
   ansi_overlays: Vec<AnsiOverlay>,
   prev_ansi_overlays: Vec<AnsiOverlay>,
-  width: u16,
-  height: u16,
 }
 impl Terminal {
   pub(crate) fn new() -> Self {
@@ -60,12 +64,13 @@ impl Terminal {
 
     Self {
       stdout,
+      width,
+      height,
+      clip_rect_stack: Vec::new(),
       front: Buffer::new(buf_len),
       back: Buffer::new(buf_len),
       ansi_overlays: Vec::new(),
       prev_ansi_overlays: Vec::new(),
-      width,
-      height,
     }
   }
 
@@ -153,7 +158,13 @@ impl Terminal {
   where
     S: AsRef<str>,
   {
-    self.back.write_chars(x, y, buf.as_ref(), self.width);
+    self.back.write_chars(
+      x,
+      y,
+      buf.as_ref(),
+      self.width,
+      &self.clip_rect_stack,
+    );
   }
   pub(crate) fn write_ansi_at(
     &mut self,
@@ -168,6 +179,19 @@ impl Terminal {
       ansi: ansi.into(),
       text: text.into(),
     });
+  }
+
+  fn is_clipped(&self, x: u16, y: u16) -> bool {
+    for rect in &self.clip_rect_stack {
+      if x < rect.x
+        || x >= rect.x + rect.width
+        || y < rect.y
+        || y >= rect.y + rect.height
+      {
+        return true;
+      };
+    }
+    false
   }
 }
 
@@ -196,9 +220,31 @@ impl Buffer {
       cell.bg = Color::Reset;
     }
   }
-  fn write_chars(&mut self, x: u16, y: u16, text: &str, w: u16) {
+  fn write_chars(
+    &mut self,
+    x: u16,
+    y: u16,
+    text: &str,
+    w: u16,
+    clip_rects: &[Rect],
+  ) {
     let start = (y as usize) * (w as usize) + (x as usize);
     for (i, ch) in text.chars().enumerate() {
+      let cx = x + i as u16;
+      let mut clipped = false;
+      for rect in clip_rects.iter() {
+        if cx >= rect.x + rect.width
+          || cx < rect.x
+          || y >= rect.y + rect.height
+          || y < rect.y
+        {
+          clipped = true;
+          break;
+        };
+      }
+      if clipped {
+        continue;
+      };
       let idx = start + i;
       if idx >= self.cells.len() {
         break;

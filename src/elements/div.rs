@@ -85,7 +85,30 @@ impl Element for Div {
     } else if let Some(scroll_handle) =
       self.interactivity.tracking_scroll_handle.as_ref()
     {
-      todo!();
+      for child_node_id in request_layout.iter() {
+        let child_bounds = window.layout_bounds(*child_node_id);
+        child_min = child_min.min(child_bounds.as_pos());
+        child_max = child_max.max(child_bounds.as_bottom_right_pos());
+      }
+      let border = self.interactivity.base_style.border;
+      let bl = border.left.into_raw().value() as u16;
+      let br = border.right.into_raw().value() as u16;
+      let bt = border.top.into_raw().value() as u16;
+      let bb = border.bottom.into_raw().value() as u16;
+      let mut lock = scroll_handle.0.borrow_mut();
+      lock.bounds = Rect {
+        x: bounds.x + bl,
+        y: bounds.y + bt,
+        width: bounds.width.saturating_sub(bl + br),
+        height: bounds.height.saturating_sub(bt + bb),
+      };
+      drop(lock);
+      let content_size = Size {
+        width: child_max.x.saturating_sub(child_min.x),
+        height: child_max.y.saturating_sub(child_min.y),
+      };
+      scroll_handle.0.borrow_mut().content_size = content_size;
+      content_size
     } else {
       for child_node_id in request_layout.iter() {
         let child_bounds = window.layout_bounds(*child_node_id);
@@ -132,6 +155,33 @@ impl Element for Div {
       window.next_frame.tab_stop_map.insert(focus_handle);
     };
 
+    let scroll_offset = self
+      .interactivity
+      .scroll_offset
+      .as_ref()
+      .map(|pos| *pos.borrow())
+      .unwrap_or_default();
+    let has_scroll = scroll_offset.x > 0 || scroll_offset.y > 0;
+    if has_scroll {
+      window.scroll_offset_stack.push(scroll_offset);
+    };
+
+    let border = self.interactivity.base_style.border;
+    let bt = border.top.into_raw().value() as u16;
+    let bb = border.bottom.into_raw().value() as u16;
+    let bl = border.left.into_raw().value() as u16;
+    let br = border.right.into_raw().value() as u16;
+    let has_border = (bl | br | bt | bb) > 0;
+    if has_border {
+      let clip = Rect {
+        x: bounds.x + bl,
+        y: bounds.y + bt,
+        width: bounds.width.saturating_sub(bl + br),
+        height: bounds.height.saturating_sub(bt + bb),
+      };
+      get_terminal().write().clip_rect_stack.push(clip);
+    };
+
     window.with_tab_group(tab_index, |window| {
       if let Some(hitbox) = pre_render.as_ref() {
         self.interactivity.apply_mouse_listeners(hitbox, window);
@@ -141,6 +191,13 @@ impl Element for Div {
         child.render(window, cx);
       }
     });
+
+    if has_border {
+      get_terminal().write().clip_rect_stack.pop();
+    };
+    if has_scroll {
+      window.scroll_offset_stack.pop();
+    };
 
     let border = self.interactivity.base_style.border;
     draw_border(bounds, border);

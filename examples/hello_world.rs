@@ -35,11 +35,8 @@ impl HelloWorld {
     let input = cx.new_entity(InputState::new);
 
     cx.on_event(input.clone(), |input, event: &InputEvent, cx| {
-      match event {
-        InputEvent::Submit => {
-          print!("EVENT HAPPENED {:?}", input.read(cx).text());
-        }
-        _ => {}
+      if let InputEvent::Submit(text) = event {
+        print!("EVENT HAPPENED {:?}", text);
       };
 
       true
@@ -58,9 +55,6 @@ impl Render for HelloWorld {
     window: &mut Window,
     cx: &mut Context<Self>,
   ) -> impl IntoElement {
-    let input = self.input.clone();
-    window.handle_input(&input.focus_handle(cx), input);
-
     div()
       .size_full()
       .track_focus(&self.focus_handle)

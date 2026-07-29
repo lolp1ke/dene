@@ -9,6 +9,10 @@ pub struct Hitbox {
 }
 impl Hitbox {
   pub(crate) fn is_hovered(&self, window: &Window) -> bool {
-    todo!("h");
+    let pos = window.mouse_position;
+    pos.x >= self.bounds.x
+      && pos.x < self.bounds.x + self.bounds.width
+      && pos.y >= self.bounds.y
+      && pos.y < self.bounds.y + self.bounds.height
   }
 }

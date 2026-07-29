@@ -11,7 +11,7 @@ use std::{
 use crate::{
   Action, App, Context, DispatchNodeId, DispatchPhase, FocusHandle, FocusNext,
   FocusPrev, Hitbox, KeyDownEvent, KeyUpEvent, MouseButton,
-  MouseButtonDownEvent, MouseButtonUpEvent, Rect, ScrollHandle, Window,
+  MouseButtonDownEvent, MouseButtonUpEvent, Pos, Rect, ScrollHandle, Window,
 };
 
 pub trait Render: 'static + Sized {
@@ -276,8 +276,16 @@ where
           .next_frame
           .dispatch_tree
           .set_active_node(dispatch_node_id);
+
+        let scroll_offset = window.accumilated_scroll_offset();
+        let bounds_with_offset = Rect {
+          x: bounds.x.saturating_sub(scroll_offset.x),
+          y: bounds.y.saturating_sub(scroll_offset.y),
+          width: bounds.width,
+          height: bounds.height,
+        };
         self.element.render(
-          bounds,
+          bounds_with_offset,
           &mut request_layout,
           &mut pre_render,
           window,
@@ -361,7 +369,7 @@ type ActionListener =
 #[derive(Default)]
 pub struct Interactivity {
   pub(crate) tracking_focus_handle: Option<FocusHandle>,
-  pub(crate) scroll_offset: Option<Rc<RefCell<[u16; 2]>>>,
+  pub(crate) scroll_offset: Option<Rc<RefCell<Pos>>>,
   pub(crate) tracking_scroll_handle: Option<ScrollHandle>,
   pub(crate) focusable: bool,
   pub(crate) tab_index: Option<isize>,

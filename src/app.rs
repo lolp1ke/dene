@@ -347,6 +347,7 @@ impl App {
       && let Some(mouse_event) = dene_input.mouse_event()
     {
       _ = active_window.update(self, |_, window, cx| {
+        window.mouse_position = pos;
         window.dispatch_mouse_event(mouse_event, cx);
       });
     };
