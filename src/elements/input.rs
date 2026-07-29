@@ -105,7 +105,6 @@ impl RenderOnce for Input {
                 && state.focus_handle.is_focused(window),
               style: CursorStyle::Underscore,
             }],
-            scroll_handle: state.scroll_handle.clone(),
           }),
       )
   }
@@ -264,7 +263,6 @@ pub enum InputEvent {
 pub struct InputContent {
   pub(crate) text: String,
   cursors: SmallVec<[Cursor; 2]>,
-  scroll_handle: ScrollHandle,
 }
 impl Element for InputContent {
   type RequestLayoutState = ();
