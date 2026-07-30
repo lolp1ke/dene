@@ -663,6 +663,67 @@ pub trait StyleableElement: Sized {
     self
   }
 
+  fn oveflow_visible(mut self) -> Self {
+    self.style().overflow = taffy::Point {
+      x: taffy::Overflow::Visible,
+      y: taffy::Overflow::Visible,
+    };
+    self
+  }
+  fn oveflow_clip(mut self) -> Self {
+    self.style().overflow = taffy::Point {
+      x: taffy::Overflow::Clip,
+      y: taffy::Overflow::Clip,
+    };
+    self
+  }
+  fn oveflow_hidden(mut self) -> Self {
+    self.style().overflow = taffy::Point {
+      x: taffy::Overflow::Hidden,
+      y: taffy::Overflow::Hidden,
+    };
+    self
+  }
+  fn oveflow_scroll(mut self) -> Self {
+    self.style().overflow = taffy::Point {
+      x: taffy::Overflow::Scroll,
+      y: taffy::Overflow::Scroll,
+    };
+    self
+  }
+  fn oveflow_x_visible(mut self) -> Self {
+    self.style().overflow.x = taffy::Overflow::Visible;
+    self
+  }
+  fn oveflow_x_clip(mut self) -> Self {
+    self.style().overflow.x = taffy::Overflow::Clip;
+    self
+  }
+  fn oveflow_x_hidden(mut self) -> Self {
+    self.style().overflow.x = taffy::Overflow::Hidden;
+    self
+  }
+  fn oveflow_x_scroll(mut self) -> Self {
+    self.style().overflow.x = taffy::Overflow::Scroll;
+    self
+  }
+  fn oveflow_y_visible(mut self) -> Self {
+    self.style().overflow.y = taffy::Overflow::Visible;
+    self
+  }
+  fn oveflow_y_clip(mut self) -> Self {
+    self.style().overflow.y = taffy::Overflow::Clip;
+    self
+  }
+  fn oveflow_y_hidden(mut self) -> Self {
+    self.style().overflow.y = taffy::Overflow::Hidden;
+    self
+  }
+  fn oveflow_y_scroll(mut self) -> Self {
+    self.style().overflow.y = taffy::Overflow::Scroll;
+    self
+  }
+
   fn relative(mut self) -> Self {
     self.style().position = taffy::Position::Relative;
     self
@@ -1067,6 +1128,27 @@ pub trait StyleableElement: Sized {
   }
   fn flex_shirnk(mut self, value: f32) -> Self {
     self.style().flex_shrink = value;
+    self
+  }
+
+  fn grid_rows(mut self, rows: u16) -> Self {
+    self.style().grid_template_rows = vec![taffy::style_helpers::repeat(
+      rows,
+      vec![taffy::style_helpers::minmax(
+        taffy::style_helpers::length(0.),
+        taffy::style_helpers::fr(1.),
+      )],
+    )];
+    self
+  }
+  fn grid_cols(mut self, rows: u16) -> Self {
+    self.style().grid_template_columns = vec![taffy::style_helpers::repeat(
+      rows,
+      vec![taffy::style_helpers::minmax(
+        taffy::style_helpers::min_content(),
+        taffy::style_helpers::fr(1.),
+      )],
+    )];
     self
   }
 }

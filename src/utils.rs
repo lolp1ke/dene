@@ -3,7 +3,7 @@
 use std::{fs::OpenOptions, sync::Mutex};
 
 use tracing::level_filters::LevelFilter;
-use tracing_subscriber::{EnvFilter, Layer, filter::filter_fn};
+use tracing_subscriber::{EnvFilter, Layer};
 
 const LOG_FIFO: &str = "/tmp/dene_tui_log_pipe";
 

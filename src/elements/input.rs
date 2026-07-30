@@ -94,8 +94,6 @@ impl RenderOnce for Input {
           .border(1.)
           .min_w(32.)
           .min_h(3.)
-          .max_w(32.)
-          .max_h(3.)
           .track_scroll(&state.scroll_handle)
           .child(InputContent {
             text: state.text.to_string(),

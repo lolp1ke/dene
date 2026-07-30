@@ -13,8 +13,8 @@ use crate::{
   Action, AnyView, App, AppContext, Context, DispatchKeystrokeResult,
   DispatchNodeId, DispatchPhase, DispatchTree, Entity, FocusHandle, FocusId,
   FocusTabStopMap, InputHandler, IntoElement, KeyDownEvent, KeyboardEvent,
-  Keystroke, LayoutEngine, Modifiers, MouseButtonDownEvent, MouseEvent,
-  NoAction, Pos, Rect, get_terminal,
+  Keystroke, LayoutEngine, Modifiers, MouseEvent, NoAction, Pos, Rect,
+  get_terminal,
 };
 
 slotmap::new_key_type! {

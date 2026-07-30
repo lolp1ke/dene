@@ -70,6 +70,13 @@ impl IntoElement for String {
     Self::Element { text: self }
   }
 }
+impl IntoElement for &String {
+  type Element = Text;
+
+  fn into_element(self) -> Self::Element {
+    Self::Element { text: self.clone() }
+  }
+}
 impl IntoElement for &'_ str {
   type Element = Text;
   fn into_element(self) -> Self::Element {
