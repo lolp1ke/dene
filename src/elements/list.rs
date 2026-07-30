@@ -96,6 +96,13 @@ where
       adapter,
     }
   }
+
+  pub fn adapter(&self) -> &V {
+    &self.adapter
+  }
+  pub fn adapter_mut(&mut self) -> &mut V {
+    &mut self.adapter
+  }
 }
 impl<V> Render for ListState<V>
 where

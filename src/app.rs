@@ -92,7 +92,7 @@ impl Default for Application {
 }
 
 type GlobalActionListener = Rc<dyn Fn(&dyn Any, DispatchPhase, &mut App)>;
-type EventDispatcListener = Box<dyn FnMut(&dyn Any, &mut App) -> bool>;
+type EventDispatcListener = Box<dyn Fn(&dyn Any, &mut App) -> bool>;
 
 #[derive(derive_more::Debug)]
 pub struct App {
@@ -662,13 +662,14 @@ impl<'a, E> Context<'a, E> {
     });
   }
 
-  pub fn on_event<E2, F, Event>(&mut self, entity: Entity<E2>, mut on_event: F)
+  pub fn on_event<E2, F, Event>(&mut self, entity: &Entity<E2>, on_event: F)
   where
     E: 'static,
     E2: 'static + EventDispatcher<Event>,
-    F: 'static + FnMut(Entity<E2>, &Event, &mut App) -> bool,
+    F: 'static + Fn(Entity<E2>, &Event, &mut App) -> bool,
     Event: 'static,
   {
+    let entity = entity.clone();
     self.event_dispatchers.insert(
       entity.id(),
       (

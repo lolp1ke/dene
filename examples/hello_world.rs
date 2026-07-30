@@ -59,7 +59,7 @@ impl HelloWorld {
       )
     });
 
-    cx.on_event(input.clone(), |input, event: &InputEvent, cx| {
+    cx.on_event(&input, |input, event: &InputEvent, cx| {
       if let InputEvent::Submit(text) = event {
         print!("EVENT HAPPENED {:?}", text);
       };
