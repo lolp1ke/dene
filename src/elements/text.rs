@@ -60,12 +60,14 @@ impl Element for Text {
 }
 impl IntoElement for Text {
   type Element = Self;
+
   fn into_element(self) -> Self::Element {
     self
   }
 }
 impl IntoElement for String {
   type Element = Text;
+
   fn into_element(self) -> Self::Element {
     Self::Element { text: self }
   }
@@ -77,11 +79,38 @@ impl IntoElement for &String {
     Self::Element { text: self.clone() }
   }
 }
-impl IntoElement for &'_ str {
-  type Element = Text;
-  fn into_element(self) -> Self::Element {
-    Self::Element {
-      text: self.to_string(),
-    }
-  }
+
+macro_rules! impl_into_element_for_to_stringalbes {
+  ($($ty:ty),* $(,)?) => {
+    $(
+      impl $crate::IntoElement for $ty {
+        type Element = $crate::Text;
+
+        fn into_element(self) -> Self::Element {
+          Self::Element {
+            text: self.to_string(),
+          }
+        }
+      }
+    )*
+  };
+}
+
+impl_into_element_for_to_stringalbes! {
+  &'_ str,
+  char,
+  i8,
+  i16,
+  i32,
+  i64,
+  i128,
+  isize,
+  u8,
+  u16,
+  u32,
+  u64,
+  u128,
+  usize,
+  f32,
+  f64,
 }
