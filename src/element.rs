@@ -6,6 +6,7 @@ use std::{
   fmt::Debug,
   mem,
   rc::Rc,
+  sync::Arc,
 };
 
 use crate::{
@@ -372,6 +373,7 @@ pub struct Interactivity {
   pub(crate) scroll_offset: Option<Rc<RefCell<Pos>>>,
   pub(crate) tracking_scroll_handle: Option<ScrollHandle>,
   pub(crate) focusable: bool,
+  pub(crate) key_contexts: Vec<Arc<str>>,
   pub(crate) tab_index: Option<isize>,
   pub(crate) tab_stop: bool,
 
@@ -575,6 +577,13 @@ impl Interactivity {
 pub trait InteractiveElement: Sized {
   fn interactivity(&mut self) -> &mut Interactivity;
 
+  fn key_context<C>(mut self, context: C) -> Self
+  where
+    C: Into<Arc<str>>,
+  {
+    self.interactivity().key_contexts.push(context.into());
+    self
+  }
   fn track_focus(mut self, focus_handle: &FocusHandle) -> Self {
     self.interactivity().tracking_focus_handle = Some(focus_handle.clone());
     self.interactivity().focusable = true;

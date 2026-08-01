@@ -77,6 +77,7 @@ impl RenderOnce for Input {
     window.handle_input(&state.focus_handle, self.state.clone());
 
     div()
+      .key_context(KEY_CONTEXT)
       .track_focus(&state.focus_handle)
       .tab_index(self.tab_index)
       .when(!state.disabled, |this| {
@@ -310,21 +311,6 @@ impl Element for InputContent {
 
       let x = bounds.x + cursor.pos as u16;
       let y = bounds.y;
-
-      // let mut clipped = false;
-      // for rect in terminal.clip_rect_stack.iter() {
-      //   if x < rect.x
-      //     || x >= rect.x + rect.width
-      //     || y < rect.y
-      //     || y >= rect.y + rect.height
-      //   {
-      //     clipped = true;
-      //     break;
-      //   }
-      // }
-      // if clipped {
-      //   continue;
-      // }
 
       match cursor.style {
         CursorStyle::Bar => {

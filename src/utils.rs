@@ -33,3 +33,20 @@ pub(crate) fn init_tracing() {
     ;
   tracing_subscriber::registry().with(layer).init();
 }
+
+#[inline]
+pub(crate) fn remove_whitespace(src: &str) -> &str {
+  let start = src
+    .find(|ch: char| !ch.is_whitespace())
+    .unwrap_or(src.len());
+  &src[start..]
+}
+
+#[inline]
+pub(crate) fn is_ident_start_char(ch: char) -> bool {
+  !ch.is_numeric() && is_ident_char(ch)
+}
+#[inline]
+pub(crate) fn is_ident_char(ch: char) -> bool {
+  ch.is_alphanumeric() || ch == '_'
+}

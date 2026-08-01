@@ -4,6 +4,7 @@ use std::{
   any::{Any, TypeId},
   marker::PhantomData,
   rc::Rc,
+  sync::Arc,
 };
 
 use smallvec::SmallVec;
@@ -140,7 +141,7 @@ impl Window {
       match self
         .current_frame
         .dispatch_tree
-        .dispatch_keystroke(pending, keystroke)
+        .dispatch_keystroke(pending, keystroke, node_id)
       {
         DispatchKeystrokeResult::Match(action) => {
           if action.partial_eq(&NoAction as &dyn Action) {
@@ -310,6 +311,9 @@ impl Window {
       .on_action(action_ty_id, Rc::new(listener));
   }
 
+  pub(crate) fn set_key_contexts(&mut self, contexts: &[Arc<str>]) {
+    self.next_frame.dispatch_tree.set_active_contexts(contexts);
+  }
   fn focus_in_current_frame(
     &self,
     focus_id: Option<FocusId>,

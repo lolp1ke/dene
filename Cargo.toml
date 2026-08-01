@@ -3,7 +3,7 @@
 [package]
 name = "dene"
 version = "0.1.0"
-authors = ["Alibek<freed.alibek@gmail.com>"]
+authors = ["alibek<freed.alibek@gmail.com>"]
 edition = "2024"
 rust-version = "1.94.0"
 description = "powerful and blazingly fast terminal user interface library."

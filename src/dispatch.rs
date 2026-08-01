@@ -13,6 +13,7 @@ use smallvec::SmallVec;
 
 use crate::{
   Action, ActionRegistry, App, FocusId, Keybinds, Keystroke, Window,
+  is_ident_char, remove_whitespace,
 };
 
 #[derive(Debug)]
@@ -68,6 +69,7 @@ impl DispatchTree {
     &self,
     pending: &[Keystroke],
     keystroke: &Keystroke,
+    focused_node_id: DispatchNodeId,
   ) -> DispatchKeystrokeResult {
     let input = pending
       .iter()
@@ -75,8 +77,12 @@ impl DispatchTree {
       .collect::<SmallVec<[&Keystroke; 2]>>();
     let keybinds = self.keybinds.borrow();
     let (exact, pending) = keybinds.match_input(input.as_slice());
+    let contexts = self.active_contexts(focused_node_id);
 
-    match exact.first() {
+    match exact
+      .into_iter()
+      .find(|binding| binding.matches_contexts(&contexts))
+    {
       Some(binding) => {
         let action_name = binding.action.name();
         let action = self.actions.get_by_name(action_name);
@@ -166,6 +172,38 @@ impl DispatchTree {
       .push((action_ty_id, listener));
   }
 
+  fn active_contexts(
+    &self,
+    focused_node_id: DispatchNodeId,
+  ) -> SmallVec<[DispatchContextEntry; 4]> {
+    let mut contexts = SmallVec::new();
+    for node_id in self.dispatch_path(focused_node_id).iter() {
+      if let Some(context) = self.node(node_id).context.as_ref() {
+        contexts.extend(context.0.iter().cloned());
+      };
+    }
+    contexts
+  }
+  pub(crate) fn set_active_contexts(&mut self, contexts: &[Arc<str>]) {
+    let node_id = self.active_node_id().unwrap();
+    let node_context = self.nodes[node_id].context.get_or_insert_default();
+
+    for src in contexts.iter() {
+      let Ok(entries) = DispatchContext::try_from(src.as_ref()) else {
+        tracing::warn!("`DispatchContext::try_from` failed; {}", src);
+        continue;
+      };
+
+      for entry in entries.0.into_iter() {
+        match entry.value {
+          Some(value) => node_context.set(entry.key, value),
+          None => node_context.add(entry.key),
+        };
+      }
+    }
+    self.context_stack.push(node_context.clone());
+  }
+
   fn active_node_id(&self) -> Option<DispatchNodeId> {
     self.node_stack.last().copied()
   }
@@ -197,11 +235,82 @@ pub(crate) struct DispatchNode {
 
 #[derive(Debug)]
 #[derive(Clone)]
-pub(crate) struct DispatchContext(Vec<DispatchContextEntry>);
+#[derive(Default)]
+pub struct DispatchContext(Vec<DispatchContextEntry>);
+impl DispatchContext {
+  fn parse(src: &str) -> anyhow::Result<Self> {
+    let mut this = Self::default();
+    let value = remove_whitespace(src);
+    Self::parse_expr(value, &mut this)?;
+    Ok(this)
+  }
+  fn parse_expr(mut src: &str, this: &mut Self) -> anyhow::Result<()> {
+    if src.is_empty() {
+      return Ok(());
+    };
+
+    let key = src
+      .chars()
+      .take_while(|c| is_ident_char(*c))
+      .collect::<String>();
+    src = remove_whitespace(&src[key.len()..]);
+    if let Some(suffix) = src.strip_prefix('-') {
+      src = remove_whitespace(suffix);
+      let value = src
+        .chars()
+        .take_while(|ch| is_ident_char(*ch))
+        .collect::<String>();
+      src = remove_whitespace(&src[value.len()..]);
+      this.set(key, value);
+    } else {
+      this.add(key);
+    };
+
+    Self::parse_expr(src, this)
+  }
+
+  fn contains(&self, key: &str) -> bool {
+    self.0.iter().any(|entry| entry.key.as_ref() == key)
+  }
+  fn set<I1, I2>(&mut self, key: I1, value: I2)
+  where
+    I1: Into<Arc<str>>,
+    I2: Into<Arc<str>>,
+  {
+    let key = key.into();
+
+    if !self.contains(&key) {
+      self.0.push(DispatchContextEntry {
+        key,
+        value: Some(value.into()),
+      });
+    };
+  }
+  fn add<I>(&mut self, ident: I)
+  where
+    I: Into<Arc<str>>,
+  {
+    let ident = ident.into();
+
+    if !self.contains(&ident) {
+      self.0.push(DispatchContextEntry {
+        key: ident,
+        value: None,
+      });
+    }
+  }
+}
+impl TryFrom<&'_ str> for DispatchContext {
+  type Error = anyhow::Error;
+
+  fn try_from(value: &'_ str) -> Result<Self, Self::Error> {
+    Self::parse(value)
+  }
+}
 
 #[derive(Debug)]
 #[derive(Clone)]
-struct DispatchContextEntry {
+pub(crate) struct DispatchContextEntry {
   pub(crate) key: Arc<str>,
   pub(crate) value: Option<Arc<str>>,
 }

@@ -5,7 +5,10 @@ use std::{rc::Rc, sync::Arc};
 use anyhow::Context;
 use smallvec::SmallVec;
 
-use crate::Action;
+use crate::{
+  Action, DispatchContextEntry, is_ident_char, is_ident_start_char,
+  remove_whitespace,
+};
 
 #[derive(Debug)]
 #[derive(derive_more::Deref, derive_more::DerefMut)]
@@ -71,6 +74,15 @@ impl Keybind {
       };
     }
     true
+  }
+  pub(crate) fn matches_contexts(
+    &self,
+    contexts: &[DispatchContextEntry],
+  ) -> bool {
+    match &self.key_context {
+      Some(context) => context.matches(contexts),
+      None => true,
+    }
   }
 }
 
@@ -164,6 +176,21 @@ impl KeybindContextPredicate {
       Ok(Self::Neq(lhs.clone(), rhs.clone()))
     } else {
       anyhow::bail!("Idents are expected; found: {:?} = {:?}", self, other)
+    }
+  }
+
+  fn matches(&self, contexts: &[DispatchContextEntry]) -> bool {
+    match self {
+      Self::Ident(key) => contexts.iter().any(|context| context.key.eq(key)),
+      Self::Eq(key, value) => contexts.iter().any(|context| {
+        context.key.eq(key) && context.value.as_deref() == Some(value)
+      }),
+      Self::Neq(key, value) => {
+        !Self::Eq(key.clone(), value.clone()).matches(contexts)
+      }
+      Self::Not(predicate) => !predicate.matches(contexts),
+      Self::And(lhs, rhs) => lhs.matches(contexts) && rhs.matches(contexts),
+      Self::Or(lhs, rhs) => lhs.matches(contexts) || rhs.matches(contexts),
     }
   }
 }
@@ -293,20 +320,3 @@ const PRECENDENCE_AND: u32 = 3;
 const PRECENDENCE_EQ: u32 = 4;
 const PRECENDENCE_NEQ: u32 = 4;
 const PRECENDENCE_NOT: u32 = 5;
-
-#[inline]
-fn remove_whitespace(src: &str) -> &str {
-  let start = src
-    .find(|ch: char| !ch.is_whitespace())
-    .unwrap_or(src.len());
-  &src[start..]
-}
-
-#[inline]
-fn is_ident_start_char(ch: char) -> bool {
-  !ch.is_numeric() && is_ident_char(ch)
-}
-#[inline]
-fn is_ident_char(ch: char) -> bool {
-  ch.is_alphanumeric() || ch == '_'
-}

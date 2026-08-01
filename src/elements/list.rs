@@ -36,6 +36,7 @@ where
 {
   state: Entity<ListState<V>>,
   style: taffy::Style,
+  tab_index: isize,
 }
 impl<V> List<V>
 where
@@ -45,6 +46,7 @@ where
     Self {
       state: state.clone(),
       style: taffy::Style::DEFAULT,
+      tab_index: 0,
     }
   }
 }
@@ -53,7 +55,15 @@ where
   V: ListAdapter,
 {
   fn render(self, window: &mut Window, cx: &mut App) -> impl IntoElement {
-    div().child(self.state.clone())
+    let state = self.state.read(cx);
+
+    div()
+      .key_context(KEY_CONTEXT)
+      .track_focus(&state.focus_handle)
+      .tab_index(self.tab_index)
+      .on_action(window.listener(&self.state, ListState::prev))
+      .on_action(window.listener(&self.state, ListState::next))
+      .child(self.state.clone())
   }
 }
 impl<V> IntoElement for List<V>
@@ -103,6 +113,45 @@ where
   pub fn adapter_mut(&mut self) -> &mut V {
     &mut self.adapter
   }
+
+  pub fn prev(&mut self, _: &Prev, _: &mut Window, cx: &mut Context<Self>) {
+    tracing::info!("PREV list event");
+    let len = self.adapter().items_len();
+    if len == 0 {
+      self.selected_idx = None;
+      return;
+    };
+
+    let idx = match self.selected_idx {
+      Some(idx) => {
+        if idx == 0 {
+          len - 1
+        } else {
+          idx - 1
+        }
+      }
+      None => len - 1,
+    };
+    self.select(idx, cx);
+  }
+  pub fn next(&mut self, _: &Next, _: &mut Window, cx: &mut Context<Self>) {
+    let len = self.adapter().items_len();
+    if len == 0 {
+      self.selected_idx = None;
+      return;
+    };
+
+    let idx = match self.selected_idx {
+      Some(idx) => (idx + 1) % len,
+      None => 0,
+    };
+    self.select(idx, cx);
+  }
+
+  fn select(&mut self, idx: usize, cx: &mut Context<Self>) {
+    self.selected_idx = Some(idx);
+    cx.emit(ListEvent::Select(idx));
+  }
 }
 impl<V> Render for ListState<V>
 where
@@ -116,7 +165,7 @@ where
     div()
       .flex()
       .flex_col()
-      .track_focus(&self.focus_handle)
+      // .track_focus(&self.focus_handle)
       .children(
         (0..self.adapter.items_len())
           .flat_map(|idx| self.adapter.render_item(idx, window, cx)),

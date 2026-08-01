@@ -74,6 +74,9 @@ impl Element for Div {
     {
       window.set_focus_handle(focus_handle);
     };
+    if !self.interactivity.key_contexts.is_empty() {
+      window.set_key_contexts(&self.interactivity.key_contexts);
+    };
 
     let mut child_min = Pos {
       x: u16::MAX,
