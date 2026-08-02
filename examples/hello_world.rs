@@ -7,7 +7,7 @@ use dene::{
     RenderOnce, StyleableElement,
   },
   elements::{
-    Input, InputEvent, InputState, List, ListAdapter, ListState, div,
+    Input, InputEvent, InputState, List, ListAdapter, ListEvent, ListState, div,
   },
   entity::Entity,
   focus::{FocusHandle, Focusable},
@@ -36,6 +36,7 @@ struct HelloWorld {
 }
 impl HelloWorld {
   fn new(cx: &mut Context<Self>) -> Self {
+    let this = cx.entity();
     let input = cx.new_entity(InputState::new);
     let list = cx.new_entity(|cx| {
       ListState::new(
@@ -59,9 +60,29 @@ impl HelloWorld {
       )
     });
 
-    cx.on_event(&input, |input, event: &InputEvent, cx| {
-      if let InputEvent::Submit(text) = event {
-        print!("EVENT HAPPENED {:?}", text);
+    cx.on_event(&input, {
+      let this = this.clone();
+
+      move |_, event: &InputEvent, cx| {
+        if let InputEvent::Submit(text) = event {
+          this.update(cx, |this, _| {
+            this.search = text.clone();
+          });
+        };
+
+        true
+      }
+    });
+    cx.on_event(&list, move |_, event: &ListEvent, _| {
+      if let ListEvent::Select(idx) = event {
+        tracing::info!("current item idx: {}", idx);
+      };
+
+      true
+    });
+    cx.on_event(&list, move |_, event: &ListEvent, _| {
+      if let ListEvent::Submit(idx) = event {
+        tracing::info!("item: {} is being processed", idx);
       };
 
       true
@@ -78,8 +99,8 @@ impl HelloWorld {
 impl Render for HelloWorld {
   fn render(
     &mut self,
-    window: &mut Window,
-    cx: &mut Context<Self>,
+    _: &mut Window,
+    _: &mut Context<Self>,
   ) -> impl IntoElement {
     div()
       .size_full()
@@ -120,7 +141,7 @@ struct HelloWorldListItem {
   description: String,
 }
 impl RenderOnce for HelloWorldListItem {
-  fn render(self, window: &mut Window, cx: &mut App) -> impl IntoElement {
+  fn render(self, _: &mut Window, _: &mut App) -> impl IntoElement {
     div()
       .grid()
       .grid_cols(2)
@@ -146,8 +167,8 @@ impl ListAdapter for HelloWorldListAdapter {
   fn render_item(
     &mut self,
     idx: usize,
-    window: &mut Window,
-    cx: &mut Context<ListState<Self>>,
+    _: &mut Window,
+    _: &mut Context<ListState<Self>>,
   ) -> Option<Self::Item> {
     self.items.get(idx).cloned()
   }

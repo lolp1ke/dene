@@ -117,6 +117,7 @@ pub struct App {
   pub(crate) event_dispatchers:
     EventDispatcherSet<EntityId, (TypeId, EventDispatcListener)>,
   pub(crate) propagate_event: bool,
+  pub(crate) prevent_default: bool,
 
   pub(crate) entities: EntityMap,
 
@@ -180,6 +181,7 @@ impl App {
           global_action_listeners: Default::default(),
           event_dispatchers: Default::default(),
           propagate_event: true,
+          prevent_default: false,
           entities: Default::default(),
           pending_updates: 0,
           pending_effects: Default::default(),

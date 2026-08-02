@@ -61,8 +61,10 @@ where
       .key_context(KEY_CONTEXT)
       .track_focus(&state.focus_handle)
       .tab_index(self.tab_index)
-      .on_action(window.listener(&self.state, ListState::prev))
+      .on_action(window.listener(&self.state, ListState::submit))
       .on_action(window.listener(&self.state, ListState::next))
+      .on_action(window.listener(&self.state, ListState::prev))
+      .on_action(window.listener(&self.state, ListState::cancel))
       .child(self.state.clone())
   }
 }
@@ -114,8 +116,28 @@ where
     &mut self.adapter
   }
 
-  pub fn prev(&mut self, _: &Prev, _: &mut Window, cx: &mut Context<Self>) {
-    tracing::info!("PREV list event");
+  fn submit(&mut self, _: &Enter, _: &mut Window, cx: &mut Context<Self>) {
+    if let Some(selected_idx) = self.selected_idx {
+      if !cx.prevent_default {
+        self.selected_idx = None;
+      };
+      cx.emit(ListEvent::Submit(selected_idx));
+    };
+  }
+  fn prev(&mut self, _: &Prev, _: &mut Window, cx: &mut Context<Self>) {
+    let len = self.adapter().items_len();
+    if len == 0 {
+      self.selected_idx = None;
+      return;
+    };
+
+    let idx = match self.selected_idx {
+      Some(idx) => (idx + 1) % len,
+      None => 0,
+    };
+    self.select(idx, cx);
+  }
+  fn next(&mut self, _: &Next, _: &mut Window, cx: &mut Context<Self>) {
     let len = self.adapter().items_len();
     if len == 0 {
       self.selected_idx = None;
@@ -134,18 +156,9 @@ where
     };
     self.select(idx, cx);
   }
-  pub fn next(&mut self, _: &Next, _: &mut Window, cx: &mut Context<Self>) {
-    let len = self.adapter().items_len();
-    if len == 0 {
-      self.selected_idx = None;
-      return;
-    };
-
-    let idx = match self.selected_idx {
-      Some(idx) => (idx + 1) % len,
-      None => 0,
-    };
-    self.select(idx, cx);
+  fn cancel(&mut self, _: &Escape, _: &mut Window, cx: &mut Context<Self>) {
+    self.selected_idx = None;
+    cx.emit(ListEvent::Cancel);
   }
 
   fn select(&mut self, idx: usize, cx: &mut Context<Self>) {
