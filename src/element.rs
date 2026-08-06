@@ -689,63 +689,63 @@ pub trait StyleableElement: Sized {
     self
   }
 
-  fn oveflow_visible(mut self) -> Self {
+  fn overflow_visible(mut self) -> Self {
     self.style().overflow = taffy::Point {
       x: taffy::Overflow::Visible,
       y: taffy::Overflow::Visible,
     };
     self
   }
-  fn oveflow_clip(mut self) -> Self {
+  fn overflow_clip(mut self) -> Self {
     self.style().overflow = taffy::Point {
       x: taffy::Overflow::Clip,
       y: taffy::Overflow::Clip,
     };
     self
   }
-  fn oveflow_hidden(mut self) -> Self {
+  fn overflow_hidden(mut self) -> Self {
     self.style().overflow = taffy::Point {
       x: taffy::Overflow::Hidden,
       y: taffy::Overflow::Hidden,
     };
     self
   }
-  fn oveflow_scroll(mut self) -> Self {
+  fn overflow_scroll(mut self) -> Self {
     self.style().overflow = taffy::Point {
       x: taffy::Overflow::Scroll,
       y: taffy::Overflow::Scroll,
     };
     self
   }
-  fn oveflow_x_visible(mut self) -> Self {
+  fn overflow_x_visible(mut self) -> Self {
     self.style().overflow.x = taffy::Overflow::Visible;
     self
   }
-  fn oveflow_x_clip(mut self) -> Self {
+  fn overflow_x_clip(mut self) -> Self {
     self.style().overflow.x = taffy::Overflow::Clip;
     self
   }
-  fn oveflow_x_hidden(mut self) -> Self {
+  fn overflow_x_hidden(mut self) -> Self {
     self.style().overflow.x = taffy::Overflow::Hidden;
     self
   }
-  fn oveflow_x_scroll(mut self) -> Self {
+  fn overflow_x_scroll(mut self) -> Self {
     self.style().overflow.x = taffy::Overflow::Scroll;
     self
   }
-  fn oveflow_y_visible(mut self) -> Self {
+  fn overflow_y_visible(mut self) -> Self {
     self.style().overflow.y = taffy::Overflow::Visible;
     self
   }
-  fn oveflow_y_clip(mut self) -> Self {
+  fn overflow_y_clip(mut self) -> Self {
     self.style().overflow.y = taffy::Overflow::Clip;
     self
   }
-  fn oveflow_y_hidden(mut self) -> Self {
+  fn overflow_y_hidden(mut self) -> Self {
     self.style().overflow.y = taffy::Overflow::Hidden;
     self
   }
-  fn oveflow_y_scroll(mut self) -> Self {
+  fn overflow_y_scroll(mut self) -> Self {
     self.style().overflow.y = taffy::Overflow::Scroll;
     self
   }
