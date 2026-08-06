@@ -48,7 +48,14 @@ impl Application {
     }
   }
 
-  pub fn run<F, R>(&mut self, f: F) -> anyhow::Result<R>
+  pub fn run<F, R>(&mut self, f: F) -> R
+  where
+    F: FnOnce(&mut App) -> R,
+  {
+    self.try_run(f).unwrap()
+  }
+  #[inline]
+  pub fn try_run<F, R>(&mut self, f: F) -> anyhow::Result<R>
   where
     F: FnOnce(&mut App) -> R,
   {

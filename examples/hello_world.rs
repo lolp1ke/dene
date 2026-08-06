@@ -17,7 +17,7 @@ use dene::{
 fn main() {
   let mut app = Application::default();
 
-  _ = app.run(|cx| {
+  _ = app.try_run(|cx| {
     cx.open_window(Default::default(), |_window, cx| {
       cx.new_entity(HelloWorld::new)
     });
