@@ -2,7 +2,9 @@
 
 #[derive(Debug)]
 #[derive(Clone, Copy)]
+#[derive(Default)]
 pub enum TextAlign {
+  #[default]
   Left,
   Center,
   Right,
