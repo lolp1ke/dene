@@ -113,4 +113,6 @@ impl_into_element_for_to_stringalbes! {
   usize,
   f32,
   f64,
+  ::std::rc::Rc<str>,
+  ::std::sync::Arc<str>,
 }
