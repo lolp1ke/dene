@@ -25,7 +25,7 @@ pub struct Entity<E> {
   #[deref]
   #[deref_mut]
   any: AnyEntity,
-  ty: PhantomData<E>,
+  ty: PhantomData<fn(E) -> E>,
 }
 impl<E> Entity<E> {
   pub(crate) const fn new(entity_id: EntityId) -> Self
