@@ -1,5 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
+use std::sync::Arc;
+
 use crate::{
   AnyElement, App, Component, Context, ElementExt, Entity, FocusHandle,
   InteractiveElement, IntoElement, ParentElement, Render, RenderOnce,
@@ -336,6 +338,41 @@ impl Default for TableCell {
   }
 }
 
+#[derive(Debug)]
+#[derive(Clone, Copy)]
+pub enum TableColumnSort {
+  Default,
+  Descending,
+  Ascending,
+}
+
+#[derive(Debug)]
+#[derive(Clone)]
+#[derive(Default)]
+pub struct TableColumn {
+  key: Arc<str>,
+  name: Arc<str>,
+  align: TextAlign,
+  sort: Option<TableColumnSort>,
+
+  width: u16,
+  min_width: u16,
+  max_width: u16,
+}
+impl TableColumn {
+  pub fn new<S1, S2>(key: S1, name: S2) -> Self
+  where
+    S1: Into<Arc<str>>,
+    S2: Into<Arc<str>>,
+  {
+    Self {
+      key: key.into(),
+      name: name.into(),
+      ..Default::default()
+    }
+  }
+}
+
 #[derive(derive_more::Debug)]
 pub struct TableState<A>
 where
@@ -344,6 +381,17 @@ where
   focus_handle: FocusHandle,
   #[debug(skip)]
   adapter: A,
+}
+impl<A> TableState<A>
+where
+  A: TableAdapter,
+{
+  pub fn new(adapter: A, cx: &mut Context<Self>) -> Self {
+    Self {
+      focus_handle: cx.focus_handle(),
+      adapter,
+    }
+  }
 }
 impl<A> Render for TableState<A>
 where
@@ -361,6 +409,7 @@ where
 pub trait TableAdapter: 'static + Sized {
   fn columns_count(&self) -> usize;
   fn rows_count(&self) -> usize;
+  fn column(&self, idx: usize) -> TableColumn;
 }
 
 const KEY_CONTEXT: &str = "table";
