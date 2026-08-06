@@ -214,20 +214,14 @@ impl IntoElement for Div {
   }
 }
 impl ParentElement for Div {
-  fn child(mut self, child: impl IntoElement) -> Self {
-    self.children.push(child.into_any_element());
-    self
-  }
-
-  fn children<I>(mut self, children: I) -> Self
+  fn extend<Iter>(&mut self, children: Iter)
   where
-    I: IntoIterator,
-    I::Item: IntoElement,
+    Iter: IntoIterator,
+    Iter::Item: IntoElement,
   {
     self
       .children
-      .extend(children.into_iter().map(|child| child.into_any_element()));
-    self
+      .extend(children.into_iter().map(IntoElement::into_any_element));
   }
 }
 impl StyleableElement for Div {

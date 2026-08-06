@@ -134,12 +134,29 @@ pub trait Element: 'static + IntoElement {
     AnyElement(Box::new(DrawableObject::new(self)))
   }
 }
-pub trait ParentElement: Element {
-  fn child(self, child: impl IntoElement) -> Self;
-  fn children<I>(self, children: I) -> Self
+pub trait ParentElement {
+  fn extend<Iter>(&mut self, children: Iter)
   where
-    I: IntoIterator,
-    I::Item: IntoElement;
+    Iter: IntoIterator,
+    Iter::Item: IntoElement;
+
+  fn child<E>(mut self, child: E) -> Self
+  where
+    E: IntoElement,
+    Self: Sized,
+  {
+    self.extend(std::iter::once(child.into_any_element()));
+    self
+  }
+  fn children<Iter>(mut self, children: Iter) -> Self
+  where
+    Iter: IntoIterator,
+    Iter::Item: IntoElement,
+    Self: Sized,
+  {
+    self.extend(children);
+    self
+  }
 }
 
 #[derive(Debug)]

@@ -30,19 +30,19 @@ pub enum ListEvent {
 }
 
 #[derive(Debug)]
-pub struct List<V>
+pub struct List<A>
 where
-  V: ListAdapter,
+  A: ListAdapter,
 {
-  state: Entity<ListState<V>>,
+  state: Entity<ListState<A>>,
   style: taffy::Style,
   tab_index: isize,
 }
-impl<V> List<V>
+impl<A> List<A>
 where
-  V: ListAdapter,
+  A: ListAdapter,
 {
-  pub fn new(state: &Entity<ListState<V>>) -> Self {
+  pub fn new(state: &Entity<ListState<A>>) -> Self {
     Self {
       state: state.clone(),
       style: taffy::Style::DEFAULT,
@@ -50,9 +50,9 @@ where
     }
   }
 }
-impl<V> RenderOnce for List<V>
+impl<A> RenderOnce for List<A>
 where
-  V: ListAdapter,
+  A: ListAdapter,
 {
   fn render(self, window: &mut Window, cx: &mut App) -> impl IntoElement {
     let state = self.state.read(cx);
@@ -68,9 +68,9 @@ where
       .child(self.state.clone())
   }
 }
-impl<V> IntoElement for List<V>
+impl<A> IntoElement for List<A>
 where
-  V: ListAdapter,
+  A: ListAdapter,
 {
   type Element = Component<Self>;
 
@@ -78,9 +78,9 @@ where
     Component::new(self)
   }
 }
-impl<V> StyleableElement for List<V>
+impl<A> StyleableElement for List<A>
 where
-  V: ListAdapter,
+  A: ListAdapter,
 {
   fn style(&mut self) -> &mut taffy::Style {
     &mut self.style
@@ -88,20 +88,20 @@ where
 }
 
 #[derive(derive_more::Debug)]
-pub struct ListState<V>
+pub struct ListState<A>
 where
-  V: ListAdapter,
+  A: ListAdapter,
 {
   pub(crate) focus_handle: FocusHandle,
   selected_idx: Option<usize>,
   #[debug(skip)]
-  adapter: V,
+  adapter: A,
 }
-impl<V> ListState<V>
+impl<A> ListState<A>
 where
-  V: ListAdapter,
+  A: ListAdapter,
 {
-  pub fn new(adapter: V, cx: &mut Context<Self>) -> Self {
+  pub fn new(adapter: A, cx: &mut Context<Self>) -> Self {
     Self {
       focus_handle: cx.focus_handle(),
       selected_idx: None,
@@ -109,10 +109,10 @@ where
     }
   }
 
-  pub fn adapter(&self) -> &V {
+  pub fn adapter(&self) -> &A {
     &self.adapter
   }
-  pub fn adapter_mut(&mut self) -> &mut V {
+  pub fn adapter_mut(&mut self) -> &mut A {
     &mut self.adapter
   }
 
@@ -166,34 +166,30 @@ where
     cx.emit(ListEvent::Select(idx));
   }
 }
-impl<V> Render for ListState<V>
+impl<A> Render for ListState<A>
 where
-  V: ListAdapter,
+  A: ListAdapter,
 {
   fn render(
     &mut self,
     window: &mut Window,
     cx: &mut Context<Self>,
   ) -> impl IntoElement {
-    div()
-      .flex()
-      .flex_col()
-      // .track_focus(&self.focus_handle)
-      .children(
-        (0..self.adapter.items_len())
-          .flat_map(|idx| self.adapter.render_item(idx, window, cx)),
-      )
+    div().flex().flex_col().children(
+      (0..self.adapter.items_len())
+        .flat_map(|idx| self.adapter.render_item(idx, window, cx)),
+    )
   }
 }
-impl<V> Focusable for ListState<V>
+impl<A> Focusable for ListState<A>
 where
-  V: ListAdapter,
+  A: ListAdapter,
 {
   fn focus_handle(&self, _: &App) -> FocusHandle {
     self.focus_handle.clone()
   }
 }
-impl<V> EventDispatcher<ListEvent> for ListState<V> where V: ListAdapter {}
+impl<A> EventDispatcher<ListEvent> for ListState<A> where A: ListAdapter {}
 
 pub trait ListAdapter: 'static + Sized {
   type Item: IntoElement;

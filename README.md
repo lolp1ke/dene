@@ -17,6 +17,7 @@
 
 > [!CAUTION]
 > tested only on macos
+> EARLY DEVELOPMENT PHASE
 
 ### prerequisites
 
@@ -32,6 +33,9 @@ rustup toolchain install 1.94.0
 [dependencies]
 dene = { git = "https://codeberg.org/lolp1ke/dene.git" }
 ```
+
+## footnote
+special thanks to [gpui](https://github.com/zed-industries/zed/tree/main/crates/gpui) library.
 
 ## license
 this codebase availble under [Apache-2.0](LICENSE-APACHE)
