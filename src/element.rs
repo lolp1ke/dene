@@ -1152,7 +1152,7 @@ pub trait StyleableElement: Sized {
     self.style().flex_grow = value;
     self
   }
-  fn flex_shirnk(mut self, value: f32) -> Self {
+  fn flex_shrink(mut self, value: f32) -> Self {
     self.style().flex_shrink = value;
     self
   }
