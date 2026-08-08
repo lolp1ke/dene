@@ -15,16 +15,13 @@ use dene::{
 };
 
 fn main() {
-  let mut app = Application::default();
+  let app = Application::default();
 
-  _ = app.try_run(|cx| {
+  app.run(|cx| {
     cx.open_window(Default::default(), |_window, cx| {
       cx.new_entity(HelloWorld::new)
     });
   });
-
-  #[cfg(debug_assertions)]
-  dbg!(&app);
 }
 
 struct HelloWorld {

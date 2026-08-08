@@ -27,7 +27,7 @@ use crate::{
   EventDispatcherSet, FocusHandle, FocusMap, FocusNext, FocusPrev,
   ForegroundExecutor, ForegroundTask, Global, KeyDownEvent, KeyUpEvent,
   Keybind, Keybinds, Keystroke, MouseButtonDownEvent, MouseButtonUpEvent, Pos,
-  Quit, Render, ScrollEvent, TERM, Task, Terminal, Window, WindowHandle,
+  Quit, Render, ScrollWheelEvent, TERM, Task, Terminal, Window, WindowHandle,
   WindowId, WindowOptions, elements, get_terminal,
 };
 
@@ -48,14 +48,14 @@ impl Application {
     }
   }
 
-  pub fn run<F, R>(&mut self, f: F) -> R
+  pub fn run<F, R>(self, f: F) -> R
   where
     F: FnOnce(&mut App) -> R,
   {
     self.try_run(f).unwrap()
   }
   #[inline]
-  pub fn try_run<F, R>(&mut self, f: F) -> anyhow::Result<R>
+  pub fn try_run<F, R>(mut self, f: F) -> anyhow::Result<R>
   where
     F: FnOnce(&mut App) -> R,
   {
@@ -341,10 +341,18 @@ impl App {
       }
       term_event::MouseEventKind::Moved => DeneInput::MouseMove(pos),
       term_event::MouseEventKind::ScrollDown => {
-        DeneInput::ScrollDown(ScrollEvent { pos, modifiers })
+        DeneInput::ScrollWheell(ScrollWheelEvent {
+          pos,
+          modifiers,
+          scroll_delta: 1,
+        })
       }
       term_event::MouseEventKind::ScrollUp => {
-        DeneInput::ScrollUp(ScrollEvent { pos, modifiers })
+        DeneInput::ScrollWheell(ScrollWheelEvent {
+          pos,
+          modifiers,
+          scroll_delta: -1,
+        })
       }
       other => {
         tracing::warn!("not support yet event: {:?}", other);
@@ -358,6 +366,11 @@ impl App {
       _ = active_window.update(self, |_, window, cx| {
         window.mouse_position = pos;
         window.dispatch_mouse_event(mouse_event, cx);
+      });
+      _ = active_window.update(self, |_, window, cx| {
+        if window.dirty {
+          window.render(cx);
+        };
       });
     };
   }

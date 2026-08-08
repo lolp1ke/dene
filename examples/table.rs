@@ -2,13 +2,15 @@
 
 use dene::{
   app::{AppContext, Application, Context},
-  element::{IntoElement, ParentElement, Render, StyleableElement},
+  element::{ElementExt, IntoElement, ParentElement, Render, StyleableElement},
   elements::{TableAdapter, TableColumn, TableState, div},
   entity::Entity,
+  style::TextAlign,
+  window::Window,
 };
 
 fn main() {
-  let mut app = Application::new();
+  let app = Application::new();
 
   app.run(move |cx| {
     cx.open_window(Default::default(), move |window, cx| {
@@ -33,10 +35,16 @@ impl Render for TopTitles {
     window: &mut dene::window::Window,
     cx: &mut Context<Self>,
   ) -> impl IntoElement {
-    div().flex().flex_col().gap_y(3.).child("Top titles")
+    div()
+      .flex()
+      .flex_col()
+      .gap_y(3.)
+      .child("Top titles")
+      .child(self.table.clone())
   }
 }
 
+#[derive(Clone)]
 struct Title {
   name: String,
   score: f32,
@@ -48,15 +56,36 @@ struct TitlesAdapter {
 }
 impl TitlesAdapter {
   fn new() -> Self {
+    let mut titles = vec![
+      Title {
+        name: "one piece".to_string(),
+        score: 10.,
+        episodes: 1172,
+      };
+      30
+    ];
+    titles.extend(vec![
+      Title {
+        name: "one piece S2".to_string(),
+        score: 10.,
+        episodes: 1172,
+      };
+      30
+    ]);
+
     Self {
-      columns: Vec::new(),
-      titles: Vec::new(),
+      columns: vec![
+        TableColumn::new("name", "name"),
+        TableColumn::new("score", "score"),
+        TableColumn::new("episode_count", "episodes"),
+      ],
+      titles,
     }
   }
 }
 impl TableAdapter for TitlesAdapter {
   fn columns_count(&self) -> usize {
-    4
+    self.columns.len()
   }
   fn rows_count(&self) -> usize {
     self.titles.len()
@@ -66,6 +95,50 @@ impl TableAdapter for TitlesAdapter {
       col.clone()
     } else {
       TableColumn::new("non_existing", "non_existing")
+    }
+  }
+
+  fn render_td(
+    &mut self,
+    row_idx: usize,
+    col_idx: usize,
+    window: &mut Window,
+    cx: &mut Context<TableState<Self>>,
+  ) -> impl IntoElement {
+    let title = self.titles.get(row_idx).unwrap();
+    let Some(col) = self.columns.get(col_idx) else {
+      return div().child("---");
+    };
+
+    match &*col.name {
+      "name" => div()
+        .when(matches!(col.align, TextAlign::Center), |this| {
+          this.justify_center()
+        })
+        .when(matches!(col.align, TextAlign::Right), |this| {
+          this.justify_end()
+        })
+        .child(&title.name),
+
+      "score" => div()
+        .when(matches!(col.align, TextAlign::Center), |this| {
+          this.justify_center()
+        })
+        .when(matches!(col.align, TextAlign::Right), |this| {
+          this.justify_end()
+        })
+        .child(title.score),
+
+      "episode_count" => div()
+        .when(matches!(col.align, TextAlign::Center), |this| {
+          this.justify_center()
+        })
+        .when(matches!(col.align, TextAlign::Right), |this| {
+          this.justify_end()
+        })
+        .child(title.episodes),
+
+      _ => div().child("---"),
     }
   }
 }
