@@ -1,9 +1,11 @@
 // SPDX-License-Identifier: Apache-2.0
 
+use std::ops::Range;
+
 use crate::{
   App, Component, Context, Entity, EventDispatcher, FocusHandle, Focusable,
   InteractiveElement, IntoElement, Keybind, Keystroke, ParentElement, Render,
-  RenderOnce, StyleableElement, Window, div,
+  RenderOnce, ScrollHandle, StyleableElement, Window, div,
 };
 
 mod actions {
@@ -93,7 +95,9 @@ where
   A: ListAdapter,
 {
   pub(crate) focus_handle: FocusHandle,
+  pub(crate) scroll_handle: ScrollHandle,
   selected_idx: Option<usize>,
+  visible_range: Range<usize>,
   #[debug(skip)]
   adapter: A,
 }
@@ -104,6 +108,11 @@ where
   pub fn new(adapter: A, cx: &mut Context<Self>) -> Self {
     Self {
       focus_handle: cx.focus_handle(),
+      scroll_handle: ScrollHandle::new([
+        taffy::Overflow::Scroll,
+        taffy::Overflow::Hidden,
+      ]),
+      visible_range: Default::default(),
       selected_idx: None,
       adapter,
     }
@@ -176,7 +185,8 @@ where
     cx: &mut Context<Self>,
   ) -> impl IntoElement {
     div().flex().flex_col().children(
-      (0..self.adapter.items_len())
+      // (0..self.adapter.items_len())
+      (self.visible_range.start..self.visible_range.end)
         .flat_map(|idx| self.adapter.render_item(idx, window, cx)),
     )
   }
@@ -196,6 +206,7 @@ pub trait ListAdapter: 'static + Sized {
 
   fn items_len(&self) -> usize;
 
+  #[allow(unused_variables)]
   fn render_item(
     &mut self,
     idx: usize,

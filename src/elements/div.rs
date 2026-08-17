@@ -83,7 +83,7 @@ impl Element for Div {
       y: u16::MAX,
     };
     let mut child_max = Pos::default();
-    let content_size = if request_layout.is_empty() {
+    let _content_size = if request_layout.is_empty() {
       bounds.as_size()
     } else if let Some(scroll_handle) =
       self.interactivity.tracking_scroll_handle.as_ref()
@@ -138,7 +138,7 @@ impl Element for Div {
     &mut self,
     bounds: Rect,
     _: &mut Self::RequestLayoutState,
-    pre_render: &mut Self::PreRenderState,
+    _: &mut Self::PreRenderState,
     window: &mut Window,
     cx: &mut App,
   ) {
@@ -175,6 +175,15 @@ impl Element for Div {
     let bl = border.left.into_raw().value() as u16;
     let br = border.right.into_raw().value() as u16;
     let has_border = (bl | br | bt | bb) > 0;
+    let overflow = self.interactivity.base_style.overflow;
+    let has_overflow = matches!(
+      overflow.x,
+      taffy::Overflow::Hidden | taffy::Overflow::Clip | taffy::Overflow::Scroll
+    ) || matches!(
+      overflow.y,
+      taffy::Overflow::Hidden | taffy::Overflow::Clip | taffy::Overflow::Scroll
+    );
+    let _has_clip = has_border || has_overflow;
     if has_border {
       let clip = Rect {
         x: bounds.x + bl,
@@ -186,9 +195,11 @@ impl Element for Div {
     };
 
     window.with_tab_group(tab_index, |window| {
-      if let Some(hitbox) = pre_render.as_ref() {
-        self.interactivity.apply_mouse_listeners(hitbox, window);
-      };
+      // if let Some(hitbox) = pre_render.as_ref() {
+      //   self.interactivity.apply_mouse_listeners(hitbox, window);
+      // };
+      let hitbox = Hitbox { bounds };
+      self.interactivity.apply_mouse_listeners(&hitbox, window);
       self.interactivity.apply_keyboard_listeners(window);
       for child in self.children.iter_mut() {
         child.render(window, cx);

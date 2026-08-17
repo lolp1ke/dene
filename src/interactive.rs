@@ -15,8 +15,8 @@ pub(crate) enum DeneInput {
   MouseButtonDown(MouseButtonDownEvent),
   MouseButtonUp(MouseButtonUpEvent),
   MouseMove(Pos),
-  ScrollDown(ScrollEvent),
-  ScrollUp(ScrollEvent),
+
+  ScrollWheell(ScrollWheelEvent),
   KeyDown(KeyDownEvent),
   KeyUp(KeyUpEvent),
 }
@@ -33,7 +33,7 @@ impl DeneInput {
       Self::MouseButtonDown(event) => Some(event),
       Self::MouseButtonUp(event) => Some(event),
       Self::MouseMove(event) => Some(event),
-      Self::ScrollDown(event) | Self::ScrollUp(event) => Some(event),
+      Self::ScrollWheell(event) => Some(event),
       _ => None,
     }
   }
@@ -88,10 +88,17 @@ impl MouseEvent for MouseButtonUpEvent {}
 
 #[derive(Debug)]
 #[derive(Clone)]
-pub struct ScrollEvent {
+pub struct ScrollWheelEvent {
   pub(crate) pos: Pos,
   pub(crate) modifiers: Modifiers,
+  pub(crate) scroll_delta: i32,
 }
+impl InputEvent for ScrollWheelEvent {
+  fn to_dene_input(self) -> DeneInput {
+    DeneInput::ScrollWheell(self)
+  }
+}
+impl MouseEvent for ScrollWheelEvent {}
 
 #[derive(Debug)]
 pub struct KeyDownEvent {

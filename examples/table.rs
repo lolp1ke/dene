@@ -13,7 +13,7 @@ fn main() {
   let app = Application::new();
 
   app.run(move |cx| {
-    cx.open_window(Default::default(), move |window, cx| {
+    cx.open_window(Default::default(), move |_, cx| {
       cx.new_entity(TopTitles::new)
     })
   });
@@ -32,8 +32,8 @@ impl TopTitles {
 impl Render for TopTitles {
   fn render(
     &mut self,
-    window: &mut dene::window::Window,
-    cx: &mut Context<Self>,
+    _: &mut dene::window::Window,
+    _: &mut Context<Self>,
   ) -> impl IntoElement {
     div()
       .flex()

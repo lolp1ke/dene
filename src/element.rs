@@ -12,7 +12,8 @@ use std::{
 use crate::{
   Action, App, Context, DispatchNodeId, DispatchPhase, FocusHandle, FocusNext,
   FocusPrev, Hitbox, KeyDownEvent, KeyUpEvent, MouseButton,
-  MouseButtonDownEvent, MouseButtonUpEvent, Pos, Rect, ScrollHandle, Window,
+  MouseButtonDownEvent, MouseButtonUpEvent, Pos, Rect, ScrollHandle,
+  ScrollWheelEvent, Window,
 };
 
 pub trait Render: 'static + Sized {
@@ -368,6 +369,10 @@ impl Debug for dyn ElementObject {
   }
 }
 
+type ScrollWheelListener = Box<
+  dyn 'static + Fn(&ScrollWheelEvent, DispatchPhase, &mut Window, &mut App),
+>;
+
 type MouseButtonDownListener = Box<
   dyn 'static
     + Fn(&MouseButtonDownEvent, DispatchPhase, &Hitbox, &mut Window, &mut App),
@@ -398,6 +403,9 @@ pub struct Interactivity {
   pub(crate) base_style: taffy::Style,
 
   #[debug(skip)]
+  pub(crate) scroll_wheel_listeners: Vec<ScrollWheelListener>,
+
+  #[debug(skip)]
   pub(crate) mouse_button_down_listeners: Vec<MouseButtonDownListener>,
   #[debug(skip)]
   pub(crate) mouse_button_up_listeners: Vec<MouseButtonUpListener>,
@@ -415,10 +423,19 @@ impl Interactivity {
     hitbox: &Hitbox,
     window: &mut Window,
   ) {
+    let scroll_wheel_listeners = mem::take(&mut self.scroll_wheel_listeners);
     let mouse_button_down_listeners =
       mem::take(&mut self.mouse_button_down_listeners);
     let mouse_button_up_listeners =
       mem::take(&mut self.mouse_button_up_listeners);
+
+    for listener in scroll_wheel_listeners.into_iter() {
+      window.on_mouse_event(
+        move |event: &ScrollWheelEvent, phase, window, cx| {
+          (listener)(event, phase, window, cx);
+        },
+      );
+    }
 
     for listener in mouse_button_down_listeners.into_iter() {
       let hitbox = hitbox.clone();
@@ -460,6 +477,19 @@ impl Interactivity {
       window.focus_prev();
       cx.propagate_event = false;
     });
+  }
+
+  fn on_scroll_wheel<F>(&mut self, listener: F)
+  where
+    F: 'static + Fn(&ScrollWheelEvent, &mut Window, &mut App),
+  {
+    self.scroll_wheel_listeners.push(Box::new(
+      move |event, phase, window, cx| {
+        if matches!(phase, DispatchPhase::Bubble) {
+          (listener)(event, window, cx);
+        };
+      },
+    ));
   }
 
   fn on_mouse_button_down<F>(&mut self, button: MouseButton, listener: F)
@@ -618,6 +648,55 @@ pub trait InteractiveElement: Sized {
   }
   fn track_scroll(mut self, scroll_handle: &ScrollHandle) -> Self {
     self.interactivity().tracking_scroll_handle = Some(scroll_handle.clone());
+    self
+  }
+
+  fn on_scroll_wheel<F>(mut self, listener: F) -> Self
+  where
+    F: 'static + Fn(&ScrollWheelEvent, &mut Window, &mut App),
+  {
+    self.interactivity().on_scroll_wheel(listener);
+    self
+  }
+
+  fn on_mouse_button_down<F>(mut self, button: MouseButton, listener: F) -> Self
+  where
+    F: 'static + Fn(&MouseButtonDownEvent, &mut Window, &mut App),
+  {
+    self.interactivity().on_mouse_button_down(button, listener);
+    self
+  }
+  fn capture_on_mouse_button_down<F>(
+    mut self,
+    button: MouseButton,
+    listener: F,
+  ) -> Self
+  where
+    F: 'static + Fn(&MouseButtonDownEvent, &mut Window, &mut App),
+  {
+    self
+      .interactivity()
+      .capture_on_mouse_button_down(button, listener);
+    self
+  }
+  fn on_mouse_button_up<F>(mut self, button: MouseButton, listener: F) -> Self
+  where
+    F: 'static + Fn(&MouseButtonUpEvent, &mut Window, &mut App),
+  {
+    self.interactivity().on_mouse_button_up(button, listener);
+    self
+  }
+  fn capture_on_mouse_button_up<F>(
+    mut self,
+    button: MouseButton,
+    listener: F,
+  ) -> Self
+  where
+    F: 'static + Fn(&MouseButtonUpEvent, &mut Window, &mut App),
+  {
+    self
+      .interactivity()
+      .capture_on_mouse_button_up(button, listener);
     self
   }
 

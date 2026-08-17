@@ -71,3 +71,13 @@ impl Pos {
     }
   }
 }
+
+#[derive(Debug)]
+#[derive(Clone, Copy)]
+#[derive(PartialEq)]
+#[derive(Default)]
+pub enum Axis {
+  #[default]
+  Horizontal,
+  Vertical,
+}

@@ -1,24 +1,26 @@
 // SPDX-License-Identifier: Apache-2.0
 
-mod _list;
+#[allow(unused)]
 mod _table;
 mod div;
 mod empty;
 mod input;
-pub mod list;
+mod list;
 mod text;
+mod virtual_list;
 
-pub use _list::*;
 pub use _table::*;
 pub use div::*;
 pub use empty::*;
 pub use input::*;
+pub use list::*;
 pub use text::*;
+pub use virtual_list::*;
 
 use crate::App;
 
 pub(crate) fn init(cx: &mut App) {
   input::init(cx);
-  _list::init(cx);
+  list::init(cx);
   _table::init(cx);
 }

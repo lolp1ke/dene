@@ -6,6 +6,7 @@ use crate::{Pos, Rect, Size};
 
 #[derive(Debug)]
 #[derive(Clone)]
+#[derive(Default)]
 pub struct ScrollHandle(pub(crate) Rc<RefCell<ScrollHandleInner>>);
 impl ScrollHandle {
   pub(crate) fn new(overflow: [taffy::Overflow; 2]) -> Self {
@@ -19,6 +20,7 @@ impl ScrollHandle {
 }
 
 #[derive(Debug)]
+#[derive(Default)]
 pub(crate) struct ScrollHandleInner {
   pub(crate) bounds: Rect,
   pub(crate) offset: Rc<RefCell<Pos>>,
