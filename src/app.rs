@@ -22,7 +22,7 @@ use smallvec::smallvec;
 use tokio::sync::mpsc::{UnboundedReceiver, unbounded_channel};
 
 use crate::{
-  Action, ActionRegistry, AnyView, AnyWindowHandle, BackgroundExecutor,
+  Action, ActionRegistry, AnyView, AnyWindowHandle, Axis, BackgroundExecutor,
   DeneInput, DispatchPhase, Entity, EntityId, EntityMap, EventDispatcher,
   EventDispatcherSet, FocusHandle, FocusMap, FocusNext, FocusPrev,
   ForegroundExecutor, ForegroundTask, Global, KeyDownEvent, KeyUpEvent,
@@ -345,6 +345,7 @@ impl App {
           pos,
           modifiers,
           scroll_delta: 1,
+          axis: Axis::Vertical,
         })
       }
       term_event::MouseEventKind::ScrollUp => {
@@ -352,6 +353,23 @@ impl App {
           pos,
           modifiers,
           scroll_delta: -1,
+          axis: Axis::Vertical,
+        })
+      }
+      term_event::MouseEventKind::ScrollLeft
+      | term_event::MouseEventKind::ScrollRight => {
+        DeneInput::ScrollWheell(ScrollWheelEvent {
+          pos,
+          modifiers,
+          scroll_delta: if matches!(
+            mouse_event.kind,
+            term_event::MouseEventKind::ScrollLeft
+          ) {
+            -1
+          } else {
+            1
+          },
+          axis: Axis::Horizontal,
         })
       }
       other => {
@@ -459,6 +477,10 @@ impl App {
       {
         _ = active_window.update(self, |_, window, cx| {
           window.dispatch_keyboard_event(keyboard_event, cx);
+
+          if window.dirty {
+            window.render(cx);
+          };
         });
       };
     };

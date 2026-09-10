@@ -164,11 +164,6 @@ impl Element for Div {
       .as_ref()
       .map(|pos| *pos.borrow())
       .unwrap_or_default();
-    let has_scroll = scroll_offset.x > 0 || scroll_offset.y > 0;
-    if has_scroll {
-      window.scroll_offset_stack.push(scroll_offset);
-    };
-
     let border = self.interactivity.base_style.border;
     let bt = border.top.into_raw().value() as u16;
     let bb = border.bottom.into_raw().value() as u16;
@@ -176,17 +171,24 @@ impl Element for Div {
     let br = border.right.into_raw().value() as u16;
     let has_border = (bl | br | bt | bb) > 0;
     let overflow = self.interactivity.base_style.overflow;
-    let has_overflow = matches!(
-      overflow.x,
-      taffy::Overflow::Hidden | taffy::Overflow::Clip | taffy::Overflow::Scroll
-    ) || matches!(
-      overflow.y,
-      taffy::Overflow::Hidden | taffy::Overflow::Clip | taffy::Overflow::Scroll
-    );
+    let clip_x = has_border
+      || matches!(
+        overflow.x,
+        taffy::Overflow::Hidden
+          | taffy::Overflow::Clip
+          | taffy::Overflow::Scroll
+      );
+    let clip_y = has_border
+      || matches!(
+        overflow.y,
+        taffy::Overflow::Hidden
+          | taffy::Overflow::Clip
+          | taffy::Overflow::Scroll
+      );
     let hitbox = Hitbox {
       bounds: get_terminal().read().visible_bounds(bounds),
     };
-    let has_clip = has_border || has_overflow;
+    let has_clip = clip_x || clip_y;
     if has_clip {
       let clip = Rect {
         x: bounds.x.saturating_add(bl),
@@ -194,24 +196,28 @@ impl Element for Div {
         width: bounds.width.saturating_sub(bl.saturating_add(br)),
         height: bounds.height.saturating_sub(bt.saturating_add(bb)),
       };
-      get_terminal().write().push_clip(clip);
+      get_terminal().write().push_clip_axes(clip, clip_x, clip_y);
     };
 
     window.with_tab_group(tab_index, |window| {
       self.interactivity.apply_mouse_listeners(&hitbox, window);
       self.interactivity.apply_keyboard_listeners(window);
+      let old_offset = {
+        let mut terminal = get_terminal().write();
+        let old_offset = terminal.draw_offset;
+        terminal.draw_offset.0 -= i64::from(scroll_offset.x);
+        terminal.draw_offset.1 -= i64::from(scroll_offset.y);
+        old_offset
+      };
       for child in self.children.iter_mut() {
         child.render(window, cx);
       }
+      get_terminal().write().draw_offset = old_offset;
     });
 
     if has_clip {
       get_terminal().write().clip_rect_stack.pop();
     };
-    if has_scroll {
-      window.scroll_offset_stack.pop();
-    };
-
     let border = self.interactivity.base_style.border;
     draw_border(bounds, border);
   }

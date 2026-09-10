@@ -296,15 +296,8 @@ where
           .dispatch_tree
           .set_active_node(dispatch_node_id);
 
-        let scroll_offset = window.accumilated_scroll_offset();
-        let bounds_with_offset = Rect {
-          x: bounds.x.saturating_sub(scroll_offset.x),
-          y: bounds.y.saturating_sub(scroll_offset.y),
-          width: bounds.width,
-          height: bounds.height,
-        };
         self.element.render(
-          bounds_with_offset,
+          bounds,
           &mut request_layout,
           &mut pre_render,
           window,
@@ -372,7 +365,6 @@ impl Debug for dyn ElementObject {
 type ScrollWheelListener = Box<
   dyn 'static + Fn(&ScrollWheelEvent, DispatchPhase, &mut Window, &mut App),
 >;
-
 type MouseButtonDownListener = Box<
   dyn 'static
     + Fn(&MouseButtonDownEvent, DispatchPhase, &Hitbox, &mut Window, &mut App),

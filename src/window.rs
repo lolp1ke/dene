@@ -35,7 +35,6 @@ pub struct Window {
 
   pub(crate) layout_engine: LayoutEngine,
 
-  pub(crate) scroll_offset_stack: Vec<Pos>,
   pub(crate) mouse_position: Pos,
 }
 impl Window {
@@ -56,7 +55,6 @@ impl Window {
         cx.keybinds.clone(),
       )),
       layout_engine: LayoutEngine::new(),
-      scroll_offset_stack: Default::default(),
       mouse_position: Default::default(),
     }
   }
@@ -401,14 +399,6 @@ impl Window {
   {
     let view = view.clone();
     move |e, window, cx| view.update(cx, |view, cx| f(view, e, window, cx))
-  }
-
-  pub(crate) fn accumilated_scroll_offset(&self) -> Pos {
-    let mut acc = Pos::default();
-    for offset in self.scroll_offset_stack.iter() {
-      acc += *offset;
-    }
-    acc
   }
 }
 

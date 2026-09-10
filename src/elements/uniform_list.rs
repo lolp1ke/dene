@@ -289,11 +289,15 @@ impl Element for UniformList {
       remainder: 0,
     };
     if self.items_count == 0 || viewport.width == 0 || viewport.height == 0 {
-      self
-        .scroll_handle
-        .0
-        .borrow_mut()
-        .update(self.items_count, 0, 0);
+      let viewport_extent = match self.axis {
+        Axis::Vertical => viewport.height,
+        Axis::Horizontal => viewport.width,
+      };
+      self.scroll_handle.0.borrow_mut().update(
+        self.items_count,
+        0,
+        viewport_extent as usize,
+      );
       return state;
     }
 
@@ -314,12 +318,15 @@ impl Element for UniformList {
       ),
     };
     let measure_index = self.measure_index.min(self.items_count - 1);
+    let input_handlers = std::mem::take(&mut window.next_frame.input_handlers);
     let item = self
       .items(measure_index..measure_index + 1, window, cx)
       .pop()
       .unwrap();
     let mut measured = self.slot(item, viewport);
     let measured_node = measured.request_layout(window, cx);
+    let mut measured_handlers =
+      std::mem::replace(&mut window.next_frame.input_handlers, input_handlers);
     window.layout_engine.compute(measured_node, available);
     let measured_bounds = window.layout_bounds(measured_node);
     let extent = match self.axis {
@@ -347,6 +354,10 @@ impl Element for UniformList {
 
     for index in range {
       let (mut item, node_id) = if index == measure_index {
+        if !measured_handlers.is_empty() {
+          window.next_frame.input_handlers =
+            std::mem::take(&mut measured_handlers);
+        }
         measured.take().unwrap()
       } else {
         let mut item = self.slot(items.next().unwrap(), viewport);
@@ -393,9 +404,11 @@ impl Element for UniformList {
       bounds: get_terminal().read().visible_bounds(viewport),
     };
     let handle = self.scroll_handle.clone();
+    let axis = self.axis;
     window.on_mouse_event(
       move |event: &ScrollWheelEvent, phase, window, cx| {
         if matches!(phase, DispatchPhase::Bubble)
+          && (event.axis == axis || event.axis == Axis::Vertical)
           && hitbox.contains(event.pos)
           && handle.0.borrow_mut().scroll(event.scroll_delta)
         {
@@ -410,7 +423,6 @@ impl Element for UniformList {
       terminal.push_clip(viewport);
       terminal.draw_offset
     };
-    let old_scroll = std::mem::take(&mut window.scroll_offset_stack);
     for (index, item) in pre_render.items.iter_mut().enumerate() {
       let displacement =
         (index * pre_render.item_extent) as i64 - pre_render.remainder as i64;
@@ -440,7 +452,6 @@ impl Element for UniformList {
       item.render(window, cx);
       get_terminal().write().clip_rect_stack.pop();
     }
-    window.scroll_offset_stack = old_scroll;
     let mut terminal = get_terminal().write();
     terminal.draw_offset = old_offset;
     terminal.clip_rect_stack.pop();

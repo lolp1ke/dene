@@ -7,6 +7,8 @@ use std::{
 
 use crossterm::{cursor, event, execute, queue, style, terminal};
 use parking_lot::RwLock;
+use unicode_segmentation::UnicodeSegmentation;
+use unicode_width::UnicodeWidthStr;
 
 use crate::Rect;
 
@@ -82,7 +84,7 @@ impl Terminal {
     let len = usize::from(width) * usize::from(height);
     self.front = Buffer::new(len);
     for cell in &mut self.front.cells {
-      cell.ch = '\0';
+      cell.symbol = "\0".into();
     }
     self.back = Buffer::new(len);
     self.ansi_overlays.clear();
@@ -117,7 +119,19 @@ impl Terminal {
   }
 
   pub(crate) fn push_clip(&mut self, bounds: Rect) {
-    let clip = self.visible_bounds(bounds);
+    self.push_clip_axes(bounds, true, true);
+  }
+
+  pub(crate) fn push_clip_axes(&mut self, bounds: Rect, x: bool, y: bool) {
+    let mut clip = self.visible_bounds(bounds);
+    if !x {
+      clip.x = 0;
+      clip.width = self.width;
+    }
+    if !y {
+      clip.y = 0;
+      clip.height = self.height;
+    }
     self.clip_rect_stack.push(clip);
   }
 
@@ -151,7 +165,7 @@ impl Terminal {
       let mut text = String::with_capacity(8);
 
       while i < total && self.back.cells[i] != self.front.cells[i] {
-        text.push(self.back.cells[i].ch);
+        text.push_str(&self.back.cells[i].symbol);
         i += 1;
         if i % w == 0 {
           break;
@@ -212,15 +226,27 @@ impl Terminal {
     if y < 0 || y >= i64::from(self.height) {
       return;
     }
-    for ch in buf.as_ref().chars() {
+    for grapheme in buf.as_ref().graphemes(true) {
       if x >= i64::from(self.width) {
         break;
       }
-      if !self.is_clipped(x, y) {
-        let index = y as usize * usize::from(self.width) + x as usize;
-        self.back.cells[index].ch = if ch.is_control() { ' ' } else { ch };
+      let grapheme = if grapheme.chars().any(char::is_control) {
+        " "
+      } else {
+        grapheme
+      };
+      let width = grapheme.width();
+      if width == 0 {
+        continue;
       }
-      x = x.saturating_add(1);
+      // A grapheme is indivisible: never paint half a wide character.
+      if !self.is_clipped(x, y)
+        && !self.is_clipped(x.saturating_add(width as i64 - 1), y)
+      {
+        let index = y as usize * usize::from(self.width) + x as usize;
+        self.back.write(index, grapheme, width);
+      }
+      x = x.saturating_add(width as i64);
     }
   }
   pub(crate) fn write_ansi_at(
@@ -231,22 +257,11 @@ impl Terminal {
     text: &str,
   ) {
     self.write_at(x, y, text);
-    let width = text.chars().count();
-    if width == 0 || width > usize::from(u16::MAX) {
+    if text.chars().any(char::is_control) {
       return;
     }
-    let visible = self.visible_bounds(Rect {
-      x,
-      y,
-      width: width as u16,
-      height: 1,
-    });
-    if usize::from(visible.width) != width || visible.height != 1 {
-      return;
-    }
-
     let mut chars = ansi.chars();
-    let mut plain = text.chars();
+    let mut painted = String::new();
     while let Some(ch) = chars.next() {
       if ch == '\u{1b}' {
         if chars.next() != Some('[') {
@@ -259,11 +274,28 @@ impl Terminal {
             _ => return,
           }
         }
-      } else if !(' '..='~').contains(&ch) || plain.next() != Some(ch) {
+      } else if ch.is_control() {
         return;
+      } else {
+        painted.push(ch);
       }
     }
-    if plain.next().is_some() {
+    if painted.graphemes(true).any(|g| g.width() == 0)
+      || text.graphemes(true).any(|g| g.width() == 0)
+    {
+      return;
+    }
+    let width = painted.width().max(text.width());
+    if width == 0 || width > usize::from(u16::MAX) {
+      return;
+    }
+    let visible = self.visible_bounds(Rect {
+      x,
+      y,
+      width: width as u16,
+      height: 1,
+    });
+    if usize::from(visible.width) != width || visible.height != 1 {
       return;
     }
     self.ansi_overlays.push(AnsiOverlay {
@@ -304,7 +336,8 @@ impl Buffer {
     Self {
       cells: vec![
         Cell {
-          ch: ' ',
+          symbol: " ".into(),
+          width: 1,
           fg: Color::Reset,
           bg: Color::Reset,
         };
@@ -315,9 +348,28 @@ impl Buffer {
 
   fn clear(&mut self) {
     for cell in self.cells.iter_mut() {
-      cell.ch = ' ';
-      cell.fg = Color::Reset;
-      cell.bg = Color::Reset;
+      cell.clear();
+    }
+  }
+
+  fn write(&mut self, index: usize, symbol: &str, width: usize) {
+    // Replacing either half of an existing wide glyph invalidates it all.
+    for occupied in index..index + width {
+      let mut start = occupied;
+      while self.cells[start].width == 0 && start > 0 {
+        start -= 1;
+      }
+      let end = start + self.cells[start].width as usize;
+      for cell in &mut self.cells[start..end] {
+        cell.clear();
+      }
+    }
+    self.cells[index].symbol.clear();
+    self.cells[index].symbol.push_str(symbol);
+    self.cells[index].width = width as u16;
+    for cell in &mut self.cells[index + 1..index + width] {
+      cell.symbol.clear();
+      cell.width = 0;
     }
   }
   fn write_styled(
@@ -330,25 +382,43 @@ impl Buffer {
     w: u16,
   ) {
     let start = (y as usize) * (w as usize) + (x as usize);
-    for (i, ch) in text.chars().enumerate() {
-      let idx = start + i;
-      if idx >= self.cells.len() {
+    let mut offset = 0;
+    for symbol in text.graphemes(true) {
+      let width = symbol.width();
+      let idx = start + offset;
+      if idx + width > self.cells.len()
+        || x as usize + offset + width > w as usize
+      {
         break;
       }
+      if width == 0 {
+        continue;
+      }
+      self.write(idx, symbol, width);
       let cell = &mut self.cells[idx];
-      cell.ch = ch;
       cell.fg = fg;
       cell.bg = bg;
+      offset += width;
     }
   }
 }
 #[derive(Debug)]
-#[derive(Clone, Copy)]
+#[derive(Clone)]
 #[derive(PartialEq)]
 struct Cell {
-  ch: char,
+  symbol: String,
+  width: u16,
   fg: Color,
   bg: Color,
+}
+impl Cell {
+  fn clear(&mut self) {
+    self.symbol.clear();
+    self.symbol.push(' ');
+    self.width = 1;
+    self.fg = Color::Reset;
+    self.bg = Color::Reset;
+  }
 }
 
 #[derive(Debug)]

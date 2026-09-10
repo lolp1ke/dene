@@ -2,7 +2,7 @@
 
 use std::{any::Any, ops::Range};
 
-use crate::{App, Entity, Keystroke, Modifiers, Pos, Window};
+use crate::{App, Axis, Entity, Keystroke, Modifiers, Pos, Window};
 
 pub(crate) trait InputEvent: 'static {
   fn to_dene_input(self) -> DeneInput;
@@ -92,6 +92,7 @@ pub struct ScrollWheelEvent {
   pub(crate) pos: Pos,
   pub(crate) modifiers: Modifiers,
   pub(crate) scroll_delta: i32,
+  pub(crate) axis: Axis,
 }
 impl InputEvent for ScrollWheelEvent {
   fn to_dene_input(self) -> DeneInput {

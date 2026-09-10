@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use crate::{App, Element, IntoElement, Rect, Window, get_terminal};
+use unicode_width::UnicodeWidthStr;
 
 #[derive(Debug)]
 pub struct Text {
@@ -15,7 +16,12 @@ impl Element for Text {
     window: &mut Window,
     cx: &mut App,
   ) -> (taffy::NodeId, Self::RequestLayoutState) {
-    let width = self.text.len() as f32;
+    let width = self
+      .text
+      .lines()
+      .map(UnicodeWidthStr::width)
+      .max()
+      .unwrap_or(0) as f32;
     let height = self.text.lines().count() as f32;
     let mut style = taffy::Style::DEFAULT;
     style.min_size = taffy::Size {
