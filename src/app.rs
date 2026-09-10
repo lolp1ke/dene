@@ -472,10 +472,12 @@ impl App {
         self.handle_key_event(key_event);
       }
       term_event::Event::Resize(width, height) => {
+        get_terminal().write().resize(width, height);
         if let Some(active_window) = self.active_window {
-          _ = active_window.update(self, |_, window, _| {
+          _ = active_window.update(self, |_, window, cx| {
             window.bounds.width = width;
             window.bounds.height = height;
+            window.render(cx);
           });
         };
       }

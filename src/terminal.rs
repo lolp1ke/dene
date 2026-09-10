@@ -32,6 +32,7 @@ pub(crate) struct Terminal {
   height: u16,
 
   pub(crate) clip_rect_stack: Vec<Rect>,
+  pub(crate) draw_offset: (i64, i64),
 
   front: Buffer,
   back: Buffer,
@@ -67,11 +68,57 @@ impl Terminal {
       width,
       height,
       clip_rect_stack: Vec::new(),
+      draw_offset: (0, 0),
       front: Buffer::new(buf_len),
       back: Buffer::new(buf_len),
       ansi_overlays: Vec::new(),
       prev_ansi_overlays: Vec::new(),
     }
+  }
+
+  pub(crate) fn resize(&mut self, width: u16, height: u16) {
+    self.width = width;
+    self.height = height;
+    let len = usize::from(width) * usize::from(height);
+    self.front = Buffer::new(len);
+    for cell in &mut self.front.cells {
+      cell.ch = '\0';
+    }
+    self.back = Buffer::new(len);
+    self.ansi_overlays.clear();
+    self.prev_ansi_overlays.clear();
+    self.clip_rect_stack.clear();
+    self.draw_offset = (0, 0);
+  }
+
+  pub(crate) fn visible_bounds(&self, bounds: Rect) -> Rect {
+    let x = self.draw_offset.0.saturating_add(i64::from(bounds.x));
+    let y = self.draw_offset.1.saturating_add(i64::from(bounds.y));
+    let mut left = x.clamp(0, i64::from(self.width));
+    let mut top = y.clamp(0, i64::from(self.height));
+    let mut right = x
+      .saturating_add(i64::from(bounds.width))
+      .clamp(0, i64::from(self.width));
+    let mut bottom = y
+      .saturating_add(i64::from(bounds.height))
+      .clamp(0, i64::from(self.height));
+    for clip in &self.clip_rect_stack {
+      left = left.max(i64::from(clip.x).min(i64::from(self.width)));
+      top = top.max(i64::from(clip.y).min(i64::from(self.height)));
+      right = right.min(i64::from(clip.x) + i64::from(clip.width));
+      bottom = bottom.min(i64::from(clip.y) + i64::from(clip.height));
+    }
+    Rect {
+      x: left as u16,
+      y: top as u16,
+      width: (right - left).max(0) as u16,
+      height: (bottom - top).max(0) as u16,
+    }
+  }
+
+  pub(crate) fn push_clip(&mut self, bounds: Rect) {
+    let clip = self.visible_bounds(bounds);
+    self.clip_rect_stack.push(clip);
   }
 
   pub(crate) fn clear(&mut self) {
@@ -134,6 +181,8 @@ impl Terminal {
     for overlay in self.ansi_overlays.iter() {
       _ = queue!(self.stdout, cursor::MoveTo(overlay.x, overlay.y));
       _ = queue!(self.stdout, style::Print(&*overlay.ansi));
+      _ = queue!(self.stdout, style::ResetColor);
+      _ = queue!(self.stdout, style::SetAttribute(style::Attribute::Reset));
     }
 
     _ = self.stdout.flush();
@@ -158,13 +207,21 @@ impl Terminal {
   where
     S: AsRef<str>,
   {
-    self.back.write_chars(
-      x,
-      y,
-      buf.as_ref(),
-      self.width,
-      &self.clip_rect_stack,
-    );
+    let mut x = self.draw_offset.0.saturating_add(i64::from(x));
+    let y = self.draw_offset.1.saturating_add(i64::from(y));
+    if y < 0 || y >= i64::from(self.height) {
+      return;
+    }
+    for ch in buf.as_ref().chars() {
+      if x >= i64::from(self.width) {
+        break;
+      }
+      if !self.is_clipped(x, y) {
+        let index = y as usize * usize::from(self.width) + x as usize;
+        self.back.cells[index].ch = if ch.is_control() { ' ' } else { ch };
+      }
+      x = x.saturating_add(1);
+    }
   }
   pub(crate) fn write_ansi_at(
     &mut self,
@@ -173,20 +230,63 @@ impl Terminal {
     ansi: &str,
     text: &str,
   ) {
-    self.ansi_overlays.push(AnsiOverlay {
+    self.write_at(x, y, text);
+    let width = text.chars().count();
+    if width == 0 || width > usize::from(u16::MAX) {
+      return;
+    }
+    let visible = self.visible_bounds(Rect {
       x,
       y,
+      width: width as u16,
+      height: 1,
+    });
+    if usize::from(visible.width) != width || visible.height != 1 {
+      return;
+    }
+
+    let mut chars = ansi.chars();
+    let mut plain = text.chars();
+    while let Some(ch) = chars.next() {
+      if ch == '\u{1b}' {
+        if chars.next() != Some('[') {
+          return;
+        }
+        loop {
+          match chars.next() {
+            Some('m') => break,
+            Some('0'..='9' | ';' | ':') => {}
+            _ => return,
+          }
+        }
+      } else if !(' '..='~').contains(&ch) || plain.next() != Some(ch) {
+        return;
+      }
+    }
+    if plain.next().is_some() {
+      return;
+    }
+    self.ansi_overlays.push(AnsiOverlay {
+      x: visible.x,
+      y: visible.y,
       ansi: ansi.into(),
       text: text.into(),
     });
   }
 
-  fn is_clipped(&self, x: u16, y: u16) -> bool {
+  fn is_clipped(&self, x: i64, y: i64) -> bool {
+    if x < 0
+      || x >= i64::from(self.width)
+      || y < 0
+      || y >= i64::from(self.height)
+    {
+      return true;
+    }
     for rect in &self.clip_rect_stack {
-      if x < rect.x
-        || x >= rect.x + rect.width
-        || y < rect.y
-        || y >= rect.y + rect.height
+      if x < i64::from(rect.x)
+        || x >= i64::from(rect.x) + i64::from(rect.width)
+        || y < i64::from(rect.y)
+        || y >= i64::from(rect.y) + i64::from(rect.height)
       {
         return true;
       };
@@ -218,38 +318,6 @@ impl Buffer {
       cell.ch = ' ';
       cell.fg = Color::Reset;
       cell.bg = Color::Reset;
-    }
-  }
-  fn write_chars(
-    &mut self,
-    x: u16,
-    y: u16,
-    text: &str,
-    w: u16,
-    clip_rects: &[Rect],
-  ) {
-    let start = (y as usize) * (w as usize) + (x as usize);
-    for (i, ch) in text.chars().enumerate() {
-      let cx = x + i as u16;
-      let mut clipped = false;
-      for rect in clip_rects.iter() {
-        if cx >= rect.x + rect.width
-          || cx < rect.x
-          || y >= rect.y + rect.height
-          || y < rect.y
-        {
-          clipped = true;
-          break;
-        };
-      }
-      if clipped {
-        continue;
-      };
-      let idx = start + i;
-      if idx >= self.cells.len() {
-        break;
-      }
-      self.cells[idx].ch = ch;
     }
   }
   fn write_styled(

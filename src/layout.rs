@@ -70,6 +70,20 @@ impl LayoutEngine {
       .unwrap();
   }
 
+  pub(crate) fn content_box(&self, node_id: NodeId) -> Rect {
+    let layout = self.engine.layout(node_id).unwrap();
+    let left = (layout.border.left + layout.padding.left).ceil();
+    let top = (layout.border.top + layout.padding.top).ceil();
+    let right = (layout.border.right + layout.padding.right).ceil();
+    let bottom = (layout.border.bottom + layout.padding.bottom).ceil();
+    Rect {
+      x: left as u16,
+      y: top as u16,
+      width: (layout.size.width.ceil() - left - right).max(0.) as u16,
+      height: (layout.size.height.ceil() - top - bottom).max(0.) as u16,
+    }
+  }
+
   pub(crate) fn style(&self, node_id: NodeId) -> Style {
     self.engine.style(node_id).cloned().unwrap()
   }

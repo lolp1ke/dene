@@ -183,22 +183,21 @@ impl Element for Div {
       overflow.y,
       taffy::Overflow::Hidden | taffy::Overflow::Clip | taffy::Overflow::Scroll
     );
-    let _has_clip = has_border || has_overflow;
-    if has_border {
+    let hitbox = Hitbox {
+      bounds: get_terminal().read().visible_bounds(bounds),
+    };
+    let has_clip = has_border || has_overflow;
+    if has_clip {
       let clip = Rect {
-        x: bounds.x + bl,
-        y: bounds.y + bt,
-        width: bounds.width.saturating_sub(bl + br),
-        height: bounds.height.saturating_sub(bt + bb),
+        x: bounds.x.saturating_add(bl),
+        y: bounds.y.saturating_add(bt),
+        width: bounds.width.saturating_sub(bl.saturating_add(br)),
+        height: bounds.height.saturating_sub(bt.saturating_add(bb)),
       };
-      get_terminal().write().clip_rect_stack.push(clip);
+      get_terminal().write().push_clip(clip);
     };
 
     window.with_tab_group(tab_index, |window| {
-      // if let Some(hitbox) = pre_render.as_ref() {
-      //   self.interactivity.apply_mouse_listeners(hitbox, window);
-      // };
-      let hitbox = Hitbox { bounds };
       self.interactivity.apply_mouse_listeners(&hitbox, window);
       self.interactivity.apply_keyboard_listeners(window);
       for child in self.children.iter_mut() {
@@ -206,7 +205,7 @@ impl Element for Div {
       }
     });
 
-    if has_border {
+    if has_clip {
       get_terminal().write().clip_rect_stack.pop();
     };
     if has_scroll {
@@ -256,43 +255,38 @@ fn draw_border(bounds: Rect, border: taffy::Rect<taffy::LengthPercentage>) {
   let bt = border.top.into_raw().value() as u16;
   let bb = border.bottom.into_raw().value() as u16;
 
-  if (bl | br | bt | bb) == 0 {
+  if (bl | br | bt | bb) == 0 || bounds.width == 0 || bounds.height == 0 {
     return;
   };
   let mut terminal = get_terminal().write();
 
   let left = bounds.x;
-  let right = bounds.x + bounds.width - 1;
+  let right = bounds.x.saturating_add(bounds.width - 1);
   let top = bounds.y;
-  let bottom = bounds.y + bounds.height - 1;
+  let bottom = bounds.y.saturating_add(bounds.height - 1);
 
   if bl > 0 {
-    let y_start = top + bt;
-    let y_end = bottom - bb;
-    if y_start <= y_end {
-      for y in y_start..=y_end {
+    for offset in bt..bounds.height.saturating_sub(bb) {
+      if let Some(y) = top.checked_add(offset) {
         terminal.write_at(left, y, "│");
       }
-    };
+    }
   };
   if br > 0 {
-    let y_start = top + bt;
-    let y_end = bottom - bb;
-    if y_start <= y_end {
-      for y in y_start..=y_end {
+    for offset in bt..bounds.height.saturating_sub(bb) {
+      if let Some(y) = top.checked_add(offset) {
         terminal.write_at(right, y, "│");
       }
-    };
+    }
   };
   if bt > 0 {
     let y = top;
     if bl > 0 {
       terminal.write_at(left, y, "┌");
     };
-    let x_start = left + bl;
-    let x_end = right - br;
-    if x_start <= x_end {
-      let line = "─".repeat((x_end - x_start + 1) as usize);
+    if let Some(x_start) = left.checked_add(bl) {
+      let line =
+        "─".repeat(bounds.width.saturating_sub(bl.saturating_add(br)) as usize);
       terminal.write_at(x_start, y, line.as_str());
     };
     if br > 0 {
@@ -305,10 +299,9 @@ fn draw_border(bounds: Rect, border: taffy::Rect<taffy::LengthPercentage>) {
     if bl > 0 {
       terminal.write_at(left, y, "└");
     };
-    let x_start = left + bl;
-    let x_end = right - br;
-    if x_start <= x_end {
-      let line = "─".repeat((x_end - x_start + 1) as usize);
+    if let Some(x_start) = left.checked_add(bl) {
+      let line =
+        "─".repeat(bounds.width.saturating_sub(bl.saturating_add(br)) as usize);
       terminal.write_at(x_start, y, line.as_str());
     };
     if br > 0 {

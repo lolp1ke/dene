@@ -430,9 +430,12 @@ impl Interactivity {
       mem::take(&mut self.mouse_button_up_listeners);
 
     for listener in scroll_wheel_listeners.into_iter() {
+      let hitbox = hitbox.clone();
       window.on_mouse_event(
         move |event: &ScrollWheelEvent, phase, window, cx| {
-          (listener)(event, phase, window, cx);
+          if hitbox.contains(event.pos) {
+            (listener)(event, phase, window, cx);
+          };
         },
       );
     }

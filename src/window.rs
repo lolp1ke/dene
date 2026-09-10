@@ -66,6 +66,7 @@ impl Window {
       return;
     };
     self.layout_engine.clear();
+    self.dirty = false;
 
     let mut root_element = root.into_any_element();
     let root_node_id = root_element.request_layout(self, cx);
@@ -98,6 +99,8 @@ impl Window {
   }
 
   pub(crate) fn dispatch_mouse_event(&mut self, event: &dyn Any, cx: &mut App) {
+    cx.propagate_event = true;
+    cx.prevent_default = false;
     let mut mouse_listeners =
       std::mem::take(&mut self.current_frame.mouse_listeners);
 
@@ -437,6 +440,7 @@ impl Frame {
 
   pub(crate) fn clear(&mut self) {
     self.dispatch_tree.clear();
+    self.mouse_listeners.clear();
     self.input_handlers.clear();
     self.tab_stop_map.clear();
     // self.focus = None;

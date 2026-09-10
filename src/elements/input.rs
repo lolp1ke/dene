@@ -153,6 +153,13 @@ impl InputState {
       cursor: cursor_blinker,
     }
   }
+  pub fn placeholder<S>(mut self, placeholder: Option<S>) -> Self
+  where
+    S: Into<Arc<str>>,
+  {
+    self.placeholder = placeholder.map(Into::into);
+    self
+  }
 
   fn ensure_cursor_visible(&self) {
     let inner = self.scroll_handle.0.borrow();
@@ -220,7 +227,7 @@ impl InputHandler for InputState {
     _: Option<Range<usize>>,
     str: &str,
     _: &mut Window,
-    _: &mut crate::App,
+    _: &mut App,
   ) {
     self.text.insert(self.cursor_pos, str);
     self.cursor_pos += str.chars().count();
@@ -228,8 +235,8 @@ impl InputHandler for InputState {
   }
   fn selected_text(
     &mut self,
-    window: &mut Window,
-    cx: &mut crate::App,
+    _: &mut Window,
+    _: &mut App,
   ) -> Option<(Range<usize>, bool)> {
     match self.selection.clone() {
       Some(range) => {
