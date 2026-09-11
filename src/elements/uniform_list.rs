@@ -317,7 +317,8 @@ impl Element for UniformList {
         viewport.width,
       ),
     };
-    let measure_index = self.measure_index.min(self.items_count - 1);
+    let measure_index =
+      self.measure_index.min(self.items_count.saturating_sub(1));
     let input_handlers = std::mem::take(&mut window.next_frame.input_handlers);
     let item = self
       .items(measure_index..measure_index + 1, window, cx)
@@ -404,11 +405,9 @@ impl Element for UniformList {
       bounds: get_terminal().read().visible_bounds(viewport),
     };
     let handle = self.scroll_handle.clone();
-    let axis = self.axis;
     window.on_mouse_event(
       move |event: &ScrollWheelEvent, phase, window, cx| {
         if matches!(phase, DispatchPhase::Bubble)
-          && (event.axis == axis || event.axis == Axis::Vertical)
           && hitbox.contains(event.pos)
           && handle.0.borrow_mut().scroll(event.scroll_delta)
         {
