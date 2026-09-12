@@ -5,7 +5,7 @@ use smallvec::SmallVec;
 use crate::{
   AnyElement, App, Element, Hitbox, InteractiveElement, Interactivity,
   IntoElement, ParentElement, Pos, Rect, Size, StyleableElement, Window,
-  get_terminal,
+  apply_style, get_terminal,
 };
 
 #[derive(Debug)]
@@ -23,6 +23,9 @@ impl Element for Div {
     window: &mut Window,
     cx: &mut App,
   ) -> (taffy::NodeId, Self::RequestLayoutState) {
+    // let mut final_style = self.interactivity.base_style.clone();
+    // apply_style(&mut final_style, self.interactivity.base_style.clone());
+
     if self.interactivity.focusable
       && self.interactivity.tracking_focus_handle.is_none()
     {
@@ -49,6 +52,13 @@ impl Element for Div {
       todo!();
     };
 
+    if let Some(focus_style) = self.interactivity.focus_style.as_ref()
+      && window.focused(cx).is_some()
+    {
+      // apply_style(&mut final_style, focus_style.clone());
+      // final_style = focus_style.clone();
+    };
+
     let child_node_ids = self
       .children
       .iter_mut()
@@ -57,6 +67,7 @@ impl Element for Div {
 
     let node_id = window.request_layout(
       self.interactivity.base_style.clone(),
+      // final_style,
       &child_node_ids,
       cx,
     );

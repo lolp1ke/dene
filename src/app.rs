@@ -113,7 +113,7 @@ pub struct App {
   pub(crate) keybinds: Rc<RefCell<Keybinds>>,
   globals_by_type: FxHashMap<TypeId, Box<dyn Any>>,
 
-  focus_map: FocusMap,
+  pub(crate) focus_map: FocusMap,
   active_window: Option<AnyWindowHandle>,
   windows: SlotMap<WindowId, Option<Box<Window>>>,
 

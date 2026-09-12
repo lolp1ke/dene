@@ -356,6 +356,11 @@ impl Window {
       self.focus(&handle);
     }
   }
+  pub(crate) fn focused(&self, cx: &App) -> Option<FocusHandle> {
+    self
+      .focus
+      .and_then(|id| FocusHandle::for_id(id, &cx.focus_map))
+  }
 
   pub fn handle_input<H>(
     &mut self,

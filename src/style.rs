@@ -9,3 +9,8 @@ pub enum TextAlign {
   Center,
   Right,
 }
+
+#[derive(Debug)]
+#[derive(Clone)]
+#[derive(Default)]
+pub struct Style {}

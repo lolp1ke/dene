@@ -393,6 +393,8 @@ pub struct Interactivity {
 
   #[debug(skip)]
   pub(crate) base_style: taffy::Style,
+  #[debug(skip)]
+  pub(crate) focus_style: Option<taffy::Style>,
 
   #[debug(skip)]
   pub(crate) scroll_wheel_listeners: Vec<ScrollWheelListener>,
@@ -730,6 +732,16 @@ pub trait InteractiveElement: Sized {
     F: 'static + Fn(&A, &mut Window, &mut App),
   {
     self.interactivity().on_action(listener);
+    self
+  }
+
+  fn focused<F>(mut self, listener: F) -> Self
+  where
+    F: 'static + Fn(taffy::Style) -> taffy::Style,
+  {
+    self.interactivity().focusable = true;
+    self.interactivity().focus_style =
+      Some(listener(self.interactivity().base_style.clone()));
     self
   }
 }
@@ -1252,6 +1264,11 @@ pub trait StyleableElement: Sized {
     self
   }
 }
+impl StyleableElement for taffy::Style {
+  fn style(&mut self) -> &mut taffy::Style {
+    self
+  }
+}
 
 pub trait ElementExt {
   fn map<F, U>(self, f: F) -> U
@@ -1271,3 +1288,56 @@ pub trait ElementExt {
   }
 }
 impl<T> ElementExt for T where T: IntoElement {}
+
+pub(crate) fn apply_style(this: &mut taffy::Style, other: taffy::Style) {
+  this.display = other.display;
+  this.item_is_table = other.item_is_table;
+  this.item_is_replaced = other.item_is_replaced;
+  this.box_sizing = other.box_sizing;
+  this.direction = other.direction;
+
+  this.overflow = other.overflow;
+  this.scrollbar_width = other.scrollbar_width;
+
+  this.position = other.position;
+  this.inset = other.inset;
+
+  this.size = other.size;
+  this.min_size = other.min_size;
+  this.max_size = other.max_size;
+  this.aspect_ratio = other.aspect_ratio;
+
+  this.margin = other.margin;
+  this.padding = other.padding;
+  this.border = other.border;
+
+  this.align_items = other.align_items;
+  this.align_self = other.align_self;
+  this.justify_items = other.justify_items;
+  this.justify_self = other.justify_self;
+  this.align_content = other.align_content;
+  this.justify_content = other.justify_content;
+  this.gap = other.gap;
+
+  this.text_align = other.text_align;
+
+  this.flex_direction = other.flex_direction;
+  this.flex_wrap = other.flex_wrap;
+
+  this.flex_basis = other.flex_basis;
+  this.flex_grow = other.flex_grow;
+  this.flex_shrink = other.flex_shrink;
+
+  this.grid_template_rows = other.grid_template_rows;
+  this.grid_template_columns = other.grid_template_columns;
+  this.grid_auto_rows = other.grid_auto_rows;
+  this.grid_auto_columns = other.grid_auto_columns;
+  this.grid_auto_flow = other.grid_auto_flow;
+
+  this.grid_template_areas = other.grid_template_areas;
+  this.grid_template_column_names = other.grid_template_column_names;
+  this.grid_template_row_names = other.grid_template_row_names;
+
+  this.grid_row = other.grid_row;
+  this.grid_column = other.grid_column;
+}
