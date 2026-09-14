@@ -7,7 +7,7 @@ use smallvec::SmallVec;
 use crate::{
   AnyElement, App, Axis, Context, Div, Element, Entity, Hitbox,
   InteractiveElement, IntoElement, Rect, Render, ScrollHandle, Size,
-  StyleableElement, Window, div,
+  StyleRefinement, StyleableElement, Window, div,
 };
 
 type RenderItemsFn = dyn for<'a> Fn(
@@ -32,7 +32,7 @@ pub struct VirtualList {
 impl VirtualList {}
 impl StyleableElement for VirtualList {
   #[inline(always)]
-  fn style(&mut self) -> &mut taffy::Style {
+  fn style(&mut self) -> &mut StyleRefinement {
     self.base.style()
   }
 }

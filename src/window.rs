@@ -326,14 +326,17 @@ impl Window {
       .unwrap_or_else(|| self.current_frame.dispatch_tree.root_node_id())
   }
   pub(crate) fn set_focus_handle(&mut self, focus_handle: &FocusHandle) {
-    if self.focus.is_none() {
-      self.focus = Some(focus_handle.id);
-    };
+    self.set_default_focus(focus_handle);
 
     if self.focus == Some(focus_handle.id) {
       self.next_frame.focus = Some(focus_handle.id);
     };
     self.next_frame.dispatch_tree.set_focus_id(focus_handle.id);
+  }
+  pub(crate) fn set_default_focus(&mut self, focus_handle: &FocusHandle) {
+    if self.focus.is_none() {
+      self.focus = Some(focus_handle.id);
+    }
   }
   fn focus(&mut self, focus_handle: &FocusHandle) {
     if self.focus == Some(focus_handle.id) {
@@ -356,12 +359,6 @@ impl Window {
       self.focus(&handle);
     }
   }
-  pub(crate) fn focused(&self, cx: &App) -> Option<FocusHandle> {
-    self
-      .focus
-      .and_then(|id| FocusHandle::for_id(id, &cx.focus_map))
-  }
-
   pub fn handle_input<H>(
     &mut self,
     focus_handle: &FocusHandle,

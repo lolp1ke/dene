@@ -50,3 +50,6 @@ pub(crate) use terminal::*;
 pub(crate) use utils::*;
 pub(crate) use view::*;
 pub(crate) use window::*;
+
+#[cfg(not(feature = "default"))]
+compile_error!("default features are required to work.");

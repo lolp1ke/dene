@@ -8,8 +8,8 @@ use taffy::{AvailableSpace, Dimension};
 pub use crate::geometry::Axis;
 use crate::{
   AnyElement, App, Context, DispatchPhase, Div, Element, Entity, Hitbox,
-  IntoElement, ParentElement, Rect, ScrollWheelEvent, StyleableElement, Window,
-  div, get_terminal,
+  IntoElement, ParentElement, Rect, ScrollWheelEvent, StyleRefinement,
+  StyleableElement, Window, div, get_terminal,
 };
 
 type RenderItemsFn = Box<
@@ -208,11 +208,13 @@ impl UniformList {
     match self.axis {
       Axis::Vertical => {
         slot = slot.flex_col();
-        slot.style().size.width = Dimension::length(viewport.width as f32);
+        slot.style().size.width =
+          Some(Dimension::length(viewport.width as f32));
       }
       Axis::Horizontal => {
         slot = slot.flex_row();
-        slot.style().size.height = Dimension::length(viewport.height as f32);
+        slot.style().size.height =
+          Some(Dimension::length(viewport.height as f32));
       }
     }
     slot.into_any_element()
@@ -264,7 +266,8 @@ impl Element for UniformList {
     self.base.style().overflow = taffy::Point {
       x: taffy::Overflow::Hidden,
       y: taffy::Overflow::Hidden,
-    };
+    }
+    .into();
     let (node_id, base) = self.base.request_layout(window, cx);
     (node_id, UniformListLayoutState { node_id, base })
   }
@@ -464,7 +467,7 @@ impl IntoElement for UniformList {
   }
 }
 impl StyleableElement for UniformList {
-  fn style(&mut self) -> &mut taffy::Style {
+  fn style(&mut self) -> &mut StyleRefinement {
     self.base.style()
   }
 }

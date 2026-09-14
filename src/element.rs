@@ -12,8 +12,8 @@ use std::{
 use crate::{
   Action, App, Context, DispatchNodeId, DispatchPhase, FocusHandle, FocusNext,
   FocusPrev, Hitbox, KeyDownEvent, KeyUpEvent, MouseButton,
-  MouseButtonDownEvent, MouseButtonUpEvent, Pos, Rect, ScrollHandle,
-  ScrollWheelEvent, Window,
+  MouseButtonDownEvent, MouseButtonUpEvent, Pos, Rect, Refine, ScrollHandle,
+  ScrollWheelEvent, StyleRefinement, Window,
 };
 
 pub trait Render: 'static + Sized {
@@ -392,9 +392,9 @@ pub struct Interactivity {
   pub(crate) tab_stop: bool,
 
   #[debug(skip)]
-  pub(crate) base_style: taffy::Style,
+  pub(crate) base_style: StyleRefinement,
   #[debug(skip)]
-  pub(crate) focus_style: Option<taffy::Style>,
+  pub(crate) focus_style: StyleRefinement,
 
   #[debug(skip)]
   pub(crate) scroll_wheel_listeners: Vec<ScrollWheelListener>,
@@ -735,43 +735,43 @@ pub trait InteractiveElement: Sized {
     self
   }
 
-  fn focused<F>(mut self, listener: F) -> Self
+  fn focused<F>(mut self, refine: F) -> Self
   where
-    F: 'static + Fn(taffy::Style) -> taffy::Style,
+    F: FnOnce(StyleRefinement) -> StyleRefinement,
   {
     self.interactivity().focusable = true;
-    self.interactivity().focus_style =
-      Some(listener(self.interactivity().base_style.clone()));
+    let refinement = refine(StyleRefinement::default());
+    self.interactivity().focus_style.refine(&refinement);
     self
   }
 }
 
 pub trait StyleableElement: Sized {
-  fn style(&mut self) -> &mut taffy::Style;
+  fn style(&mut self) -> &mut StyleRefinement;
 
   fn block(mut self) -> Self {
-    self.style().display = taffy::Display::Block;
+    self.style().display = Some(taffy::Display::Block);
     self
   }
   fn flex(mut self) -> Self {
-    self.style().display = taffy::Display::Flex;
+    self.style().display = Some(taffy::Display::Flex);
     self
   }
   fn grid(mut self) -> Self {
-    self.style().display = taffy::Display::Grid;
+    self.style().display = Some(taffy::Display::Grid);
     self
   }
   fn none(mut self) -> Self {
-    self.style().display = taffy::Display::None;
+    self.style().display = Some(taffy::Display::None);
     self
   }
 
   fn box_border(mut self) -> Self {
-    self.style().box_sizing = taffy::BoxSizing::BorderBox;
+    self.style().box_sizing = Some(taffy::BoxSizing::BorderBox);
     self
   }
   fn box_content(mut self) -> Self {
-    self.style().box_sizing = taffy::BoxSizing::ContentBox;
+    self.style().box_sizing = Some(taffy::BoxSizing::ContentBox);
     self
   }
 
@@ -779,493 +779,504 @@ pub trait StyleableElement: Sized {
     self.style().overflow = taffy::Point {
       x: taffy::Overflow::Visible,
       y: taffy::Overflow::Visible,
-    };
+    }
+    .into();
     self
   }
   fn overflow_clip(mut self) -> Self {
     self.style().overflow = taffy::Point {
       x: taffy::Overflow::Clip,
       y: taffy::Overflow::Clip,
-    };
+    }
+    .into();
     self
   }
   fn overflow_hidden(mut self) -> Self {
     self.style().overflow = taffy::Point {
       x: taffy::Overflow::Hidden,
       y: taffy::Overflow::Hidden,
-    };
+    }
+    .into();
     self
   }
   fn overflow_scroll(mut self) -> Self {
     self.style().overflow = taffy::Point {
       x: taffy::Overflow::Scroll,
       y: taffy::Overflow::Scroll,
-    };
+    }
+    .into();
     self
   }
   fn overflow_x_visible(mut self) -> Self {
-    self.style().overflow.x = taffy::Overflow::Visible;
+    self.style().overflow.x = Some(taffy::Overflow::Visible);
     self
   }
   fn overflow_x_clip(mut self) -> Self {
-    self.style().overflow.x = taffy::Overflow::Clip;
+    self.style().overflow.x = Some(taffy::Overflow::Clip);
     self
   }
   fn overflow_x_hidden(mut self) -> Self {
-    self.style().overflow.x = taffy::Overflow::Hidden;
+    self.style().overflow.x = Some(taffy::Overflow::Hidden);
     self
   }
   fn overflow_x_scroll(mut self) -> Self {
-    self.style().overflow.x = taffy::Overflow::Scroll;
+    self.style().overflow.x = Some(taffy::Overflow::Scroll);
     self
   }
   fn overflow_y_visible(mut self) -> Self {
-    self.style().overflow.y = taffy::Overflow::Visible;
+    self.style().overflow.y = Some(taffy::Overflow::Visible);
     self
   }
   fn overflow_y_clip(mut self) -> Self {
-    self.style().overflow.y = taffy::Overflow::Clip;
+    self.style().overflow.y = Some(taffy::Overflow::Clip);
     self
   }
   fn overflow_y_hidden(mut self) -> Self {
-    self.style().overflow.y = taffy::Overflow::Hidden;
+    self.style().overflow.y = Some(taffy::Overflow::Hidden);
     self
   }
   fn overflow_y_scroll(mut self) -> Self {
-    self.style().overflow.y = taffy::Overflow::Scroll;
+    self.style().overflow.y = Some(taffy::Overflow::Scroll);
     self
   }
 
   fn relative(mut self) -> Self {
-    self.style().position = taffy::Position::Relative;
+    self.style().position = Some(taffy::Position::Relative);
     self
   }
   fn absolute(mut self) -> Self {
-    self.style().position = taffy::Position::Absolute;
+    self.style().position = Some(taffy::Position::Absolute);
     self
   }
 
   fn w_auto(mut self) -> Self {
-    self.style().size.width = taffy::Dimension::auto();
+    self.style().size.width = Some(taffy::Dimension::auto());
     self
   }
   fn h_auto(mut self) -> Self {
-    self.style().size.height = taffy::Dimension::auto();
+    self.style().size.height = Some(taffy::Dimension::auto());
     self
   }
   fn min_w(mut self, w: f32) -> Self {
-    self.style().min_size.width = taffy::Dimension::length(w);
+    self.style().min_size.width = Some(taffy::Dimension::length(w));
     self
   }
   fn min_h(mut self, h: f32) -> Self {
-    self.style().min_size.height = taffy::Dimension::length(h);
+    self.style().min_size.height = Some(taffy::Dimension::length(h));
     self
   }
   fn max_w(mut self, w: f32) -> Self {
-    self.style().max_size.width = taffy::Dimension::length(w);
+    self.style().max_size.width = Some(taffy::Dimension::length(w));
     self
   }
   fn max_h(mut self, h: f32) -> Self {
-    self.style().max_size.height = taffy::Dimension::length(h);
+    self.style().max_size.height = Some(taffy::Dimension::length(h));
     self
   }
   fn min_wp(mut self, w: f32) -> Self {
-    self.style().min_size.width = taffy::Dimension::percent(w);
+    self.style().min_size.width = Some(taffy::Dimension::percent(w));
     self
   }
   fn min_hp(mut self, h: f32) -> Self {
-    self.style().min_size.height = taffy::Dimension::percent(h);
+    self.style().min_size.height = Some(taffy::Dimension::percent(h));
     self
   }
   fn max_wp(mut self, w: f32) -> Self {
-    self.style().max_size.width = taffy::Dimension::percent(w);
+    self.style().max_size.width = Some(taffy::Dimension::percent(w));
     self
   }
   fn max_hp(mut self, h: f32) -> Self {
-    self.style().max_size.height = taffy::Dimension::percent(h);
+    self.style().max_size.height = Some(taffy::Dimension::percent(h));
     self
   }
   fn w_full(mut self) -> Self {
-    self.style().size.width = taffy::Dimension::percent(1.);
+    self.style().size.width = Some(taffy::Dimension::percent(1.));
     self
   }
   fn h_full(mut self) -> Self {
-    self.style().size.height = taffy::Dimension::percent(1.);
+    self.style().size.height = Some(taffy::Dimension::percent(1.));
     self
   }
   fn size_auto(mut self) -> Self {
     self.style().size = taffy::Size {
       width: taffy::Dimension::auto(),
       height: taffy::Dimension::auto(),
-    };
+    }
+    .into();
     self
   }
   fn size_full(mut self) -> Self {
     self.style().size = taffy::Size {
       width: taffy::Dimension::percent(1.),
       height: taffy::Dimension::percent(1.),
-    };
+    }
+    .into();
     self
   }
 
   fn m(mut self, value: f32) -> Self {
-    self.style().margin = taffy::Rect::length(value);
+    self.style().margin = taffy::Rect::length(value).into();
     self
   }
   fn m_auto(mut self) -> Self {
-    self.style().margin = taffy::Rect::auto();
+    self.style().margin = taffy::Rect::auto().into();
     self
   }
   fn mx(mut self, x: f32) -> Self {
-    self.style().margin.left = taffy::LengthPercentageAuto::length(x);
-    self.style().margin.right = taffy::LengthPercentageAuto::length(x);
+    self.style().margin.left = Some(taffy::LengthPercentageAuto::length(x));
+    self.style().margin.right = Some(taffy::LengthPercentageAuto::length(x));
     self
   }
   fn my(mut self, y: f32) -> Self {
-    self.style().margin.bottom = taffy::LengthPercentageAuto::length(y);
-    self.style().margin.top = taffy::LengthPercentageAuto::length(y);
+    self.style().margin.bottom = Some(taffy::LengthPercentageAuto::length(y));
+    self.style().margin.top = Some(taffy::LengthPercentageAuto::length(y));
     self
   }
   fn ml(mut self, l: f32) -> Self {
-    self.style().margin.left = taffy::LengthPercentageAuto::length(l);
+    self.style().margin.left = Some(taffy::LengthPercentageAuto::length(l));
     self
   }
   fn mr(mut self, r: f32) -> Self {
-    self.style().margin.right = taffy::LengthPercentageAuto::length(r);
+    self.style().margin.right = Some(taffy::LengthPercentageAuto::length(r));
     self
   }
   fn mt(mut self, t: f32) -> Self {
-    self.style().margin.top = taffy::LengthPercentageAuto::length(t);
+    self.style().margin.top = Some(taffy::LengthPercentageAuto::length(t));
     self
   }
   fn mb(mut self, b: f32) -> Self {
-    self.style().margin.bottom = taffy::LengthPercentageAuto::length(b);
+    self.style().margin.bottom = Some(taffy::LengthPercentageAuto::length(b));
     self
   }
 
   fn p(mut self, value: f32) -> Self {
-    self.style().padding = taffy::Rect::length(value);
+    self.style().padding = taffy::Rect::length(value).into();
     self
   }
   fn px(mut self, x: f32) -> Self {
-    self.style().padding.left = taffy::LengthPercentage::length(x);
-    self.style().padding.right = taffy::LengthPercentage::length(x);
+    self.style().padding.left = Some(taffy::LengthPercentage::length(x));
+    self.style().padding.right = Some(taffy::LengthPercentage::length(x));
     self
   }
   fn py(mut self, y: f32) -> Self {
-    self.style().padding.bottom = taffy::LengthPercentage::length(y);
-    self.style().padding.top = taffy::LengthPercentage::length(y);
+    self.style().padding.bottom = Some(taffy::LengthPercentage::length(y));
+    self.style().padding.top = Some(taffy::LengthPercentage::length(y));
     self
   }
   fn pl(mut self, l: f32) -> Self {
-    self.style().padding.left = taffy::LengthPercentage::length(l);
+    self.style().padding.left = Some(taffy::LengthPercentage::length(l));
     self
   }
   fn pr(mut self, r: f32) -> Self {
-    self.style().padding.right = taffy::LengthPercentage::length(r);
+    self.style().padding.right = Some(taffy::LengthPercentage::length(r));
     self
   }
   fn pt(mut self, t: f32) -> Self {
-    self.style().padding.top = taffy::LengthPercentage::length(t);
+    self.style().padding.top = Some(taffy::LengthPercentage::length(t));
     self
   }
   fn pb(mut self, b: f32) -> Self {
-    self.style().padding.bottom = taffy::LengthPercentage::length(b);
+    self.style().padding.bottom = Some(taffy::LengthPercentage::length(b));
     self
   }
 
   fn border(mut self, value: f32) -> Self {
-    self.style().border = taffy::Rect::length(value);
+    self.style().border = taffy::Rect::length(value).into();
     self
   }
   fn border_x(mut self, x: f32) -> Self {
-    self.style().border.left = taffy::LengthPercentage::length(x);
-    self.style().border.right = taffy::LengthPercentage::length(x);
+    self.style().border.left = Some(taffy::LengthPercentage::length(x));
+    self.style().border.right = Some(taffy::LengthPercentage::length(x));
     self
   }
   fn border_y(mut self, y: f32) -> Self {
-    self.style().border.bottom = taffy::LengthPercentage::length(y);
-    self.style().border.top = taffy::LengthPercentage::length(y);
+    self.style().border.bottom = Some(taffy::LengthPercentage::length(y));
+    self.style().border.top = Some(taffy::LengthPercentage::length(y));
     self
   }
   fn border_l(mut self, l: f32) -> Self {
-    self.style().border.left = taffy::LengthPercentage::length(l);
+    self.style().border.left = Some(taffy::LengthPercentage::length(l));
     self
   }
   fn border_r(mut self, r: f32) -> Self {
-    self.style().border.right = taffy::LengthPercentage::length(r);
+    self.style().border.right = Some(taffy::LengthPercentage::length(r));
     self
   }
   fn border_t(mut self, t: f32) -> Self {
-    self.style().border.top = taffy::LengthPercentage::length(t);
+    self.style().border.top = Some(taffy::LengthPercentage::length(t));
     self
   }
   fn border_b(mut self, b: f32) -> Self {
-    self.style().border.bottom = taffy::LengthPercentage::length(b);
+    self.style().border.bottom = Some(taffy::LengthPercentage::length(b));
     self
   }
 
   fn items_start(mut self) -> Self {
-    self.style().align_items = Some(taffy::AlignItems::FLEX_START);
+    self.style().align_items = Some(Some(taffy::AlignItems::FLEX_START));
     self
   }
   fn items_end(mut self) -> Self {
-    self.style().align_items = Some(taffy::AlignItems::FLEX_END);
+    self.style().align_items = Some(Some(taffy::AlignItems::FLEX_END));
     self
   }
   fn items_end_safe(mut self) -> Self {
-    self.style().align_items = Some(taffy::AlignItems::SAFE_FLEX_END);
+    self.style().align_items = Some(Some(taffy::AlignItems::SAFE_FLEX_END));
     self
   }
   fn items_center(mut self) -> Self {
-    self.style().align_items = Some(taffy::AlignItems::CENTER);
+    self.style().align_items = Some(Some(taffy::AlignItems::CENTER));
     self
   }
   fn items_center_safe(mut self) -> Self {
-    self.style().align_items = Some(taffy::AlignItems::SAFE_CENTER);
+    self.style().align_items = Some(Some(taffy::AlignItems::SAFE_CENTER));
     self
   }
   fn items_baseline(mut self) -> Self {
-    self.style().align_items = Some(taffy::AlignItems::BASELINE);
+    self.style().align_items = Some(Some(taffy::AlignItems::BASELINE));
     self
   }
   fn items_stretch(mut self) -> Self {
-    self.style().align_items = Some(taffy::AlignItems::STRETCH);
+    self.style().align_items = Some(Some(taffy::AlignItems::STRETCH));
     self
   }
 
   fn self_auto(mut self) -> Self {
-    self.style().align_self = self.style().align_items;
+    self.style().align_self = Some(None);
     self
   }
   fn self_start(mut self) -> Self {
-    self.style().align_self = Some(taffy::AlignItems::FLEX_START);
+    self.style().align_self = Some(Some(taffy::AlignItems::FLEX_START));
     self
   }
   fn self_end(mut self) -> Self {
-    self.style().align_self = Some(taffy::AlignItems::FLEX_END);
+    self.style().align_self = Some(Some(taffy::AlignItems::FLEX_END));
     self
   }
   fn self_end_safe(mut self) -> Self {
-    self.style().align_self = Some(taffy::AlignItems::SAFE_FLEX_END);
+    self.style().align_self = Some(Some(taffy::AlignItems::SAFE_FLEX_END));
     self
   }
   fn self_center(mut self) -> Self {
-    self.style().align_self = Some(taffy::AlignItems::CENTER);
+    self.style().align_self = Some(Some(taffy::AlignItems::CENTER));
     self
   }
   fn self_center_safe(mut self) -> Self {
-    self.style().align_self = Some(taffy::AlignItems::SAFE_CENTER);
+    self.style().align_self = Some(Some(taffy::AlignItems::SAFE_CENTER));
     self
   }
   fn self_baseline(mut self) -> Self {
-    self.style().align_self = Some(taffy::AlignItems::BASELINE);
+    self.style().align_self = Some(Some(taffy::AlignItems::BASELINE));
     self
   }
   fn self_stretch(mut self) -> Self {
-    self.style().align_self = Some(taffy::AlignItems::STRETCH);
+    self.style().align_self = Some(Some(taffy::AlignItems::STRETCH));
     self
   }
 
   fn justify_items_start(mut self) -> Self {
-    self.style().justify_items = Some(taffy::AlignItems::START);
+    self.style().justify_items = Some(Some(taffy::AlignItems::START));
     self
   }
   fn justify_items_end(mut self) -> Self {
-    self.style().justify_items = Some(taffy::AlignItems::END);
+    self.style().justify_items = Some(Some(taffy::AlignItems::END));
     self
   }
   fn justify_items_end_safe(mut self) -> Self {
-    self.style().justify_items = Some(taffy::AlignItems::SAFE_END);
+    self.style().justify_items = Some(Some(taffy::AlignItems::SAFE_END));
     self
   }
   fn justify_items_center(mut self) -> Self {
-    self.style().justify_items = Some(taffy::AlignItems::CENTER);
+    self.style().justify_items = Some(Some(taffy::AlignItems::CENTER));
     self
   }
   fn justify_items_center_safe(mut self) -> Self {
-    self.style().justify_items = Some(taffy::AlignItems::SAFE_CENTER);
+    self.style().justify_items = Some(Some(taffy::AlignItems::SAFE_CENTER));
     self
   }
   fn justify_items_stretch(mut self) -> Self {
-    self.style().justify_items = Some(taffy::AlignItems::STRETCH);
+    self.style().justify_items = Some(Some(taffy::AlignItems::STRETCH));
     self
   }
 
   fn justify_self_auto(mut self) -> Self {
-    self.style().justify_self = self.style().justify_self;
+    self.style().justify_self = Some(None);
     self
   }
   fn justify_self_start(mut self) -> Self {
-    self.style().justify_self = Some(taffy::AlignItems::START);
+    self.style().justify_self = Some(Some(taffy::AlignItems::START));
     self
   }
   fn justify_self_end(mut self) -> Self {
-    self.style().justify_self = Some(taffy::AlignItems::END);
+    self.style().justify_self = Some(Some(taffy::AlignItems::END));
     self
   }
   fn justify_self_end_safe(mut self) -> Self {
-    self.style().justify_self = Some(taffy::AlignItems::SAFE_END);
+    self.style().justify_self = Some(Some(taffy::AlignItems::SAFE_END));
     self
   }
   fn justify_self_center(mut self) -> Self {
-    self.style().justify_self = Some(taffy::AlignItems::CENTER);
+    self.style().justify_self = Some(Some(taffy::AlignItems::CENTER));
     self
   }
   fn justify_self_center_safe(mut self) -> Self {
-    self.style().justify_self = Some(taffy::AlignItems::SAFE_CENTER);
+    self.style().justify_self = Some(Some(taffy::AlignItems::SAFE_CENTER));
     self
   }
   fn justify_self_stretch(mut self) -> Self {
-    self.style().justify_self = Some(taffy::AlignItems::STRETCH);
+    self.style().justify_self = Some(Some(taffy::AlignItems::STRETCH));
     self
   }
 
   fn content_start(mut self) -> Self {
-    self.style().align_content = Some(taffy::AlignContent::FLEX_START);
+    self.style().align_content = Some(Some(taffy::AlignContent::FLEX_START));
     self
   }
   fn content_end(mut self) -> Self {
-    self.style().align_content = Some(taffy::AlignContent::FLEX_END);
+    self.style().align_content = Some(Some(taffy::AlignContent::FLEX_END));
     self
   }
   fn content_center(mut self) -> Self {
-    self.style().align_content = Some(taffy::AlignContent::CENTER);
+    self.style().align_content = Some(Some(taffy::AlignContent::CENTER));
     self
   }
   fn content_between(mut self) -> Self {
-    self.style().align_content = Some(taffy::AlignContent::SPACE_BETWEEN);
+    self.style().align_content = Some(Some(taffy::AlignContent::SPACE_BETWEEN));
     self
   }
   fn content_around(mut self) -> Self {
-    self.style().align_content = Some(taffy::AlignContent::SPACE_AROUND);
+    self.style().align_content = Some(Some(taffy::AlignContent::SPACE_AROUND));
     self
   }
   fn content_evenly(mut self) -> Self {
-    self.style().align_content = Some(taffy::AlignContent::SPACE_EVENLY);
+    self.style().align_content = Some(Some(taffy::AlignContent::SPACE_EVENLY));
     self
   }
   fn content_stretch(mut self) -> Self {
-    self.style().align_content = Some(taffy::AlignContent::STRETCH);
+    self.style().align_content = Some(Some(taffy::AlignContent::STRETCH));
     self
   }
 
   fn justify_start(mut self) -> Self {
-    self.style().justify_content = Some(taffy::AlignContent::FLEX_START);
+    self.style().justify_content = Some(Some(taffy::AlignContent::FLEX_START));
     self
   }
   fn justify_end(mut self) -> Self {
-    self.style().justify_content = Some(taffy::AlignContent::FLEX_END);
+    self.style().justify_content = Some(Some(taffy::AlignContent::FLEX_END));
     self
   }
   fn justify_end_safe(mut self) -> Self {
-    self.style().justify_content = Some(taffy::AlignContent::SAFE_FLEX_END);
+    self.style().justify_content =
+      Some(Some(taffy::AlignContent::SAFE_FLEX_END));
     self
   }
   fn justify_center(mut self) -> Self {
-    self.style().justify_content = Some(taffy::AlignContent::CENTER);
+    self.style().justify_content = Some(Some(taffy::AlignContent::CENTER));
     self
   }
   fn justify_center_safe(mut self) -> Self {
-    self.style().justify_content = Some(taffy::AlignContent::SAFE_CENTER);
+    self.style().justify_content = Some(Some(taffy::AlignContent::SAFE_CENTER));
     self
   }
   fn justify_between(mut self) -> Self {
-    self.style().justify_content = Some(taffy::AlignContent::SPACE_BETWEEN);
+    self.style().justify_content =
+      Some(Some(taffy::AlignContent::SPACE_BETWEEN));
     self
   }
   fn justify_around(mut self) -> Self {
-    self.style().justify_content = Some(taffy::AlignContent::SPACE_AROUND);
+    self.style().justify_content =
+      Some(Some(taffy::AlignContent::SPACE_AROUND));
     self
   }
   fn justify_evenly(mut self) -> Self {
-    self.style().justify_content = Some(taffy::AlignContent::SPACE_EVENLY);
+    self.style().justify_content =
+      Some(Some(taffy::AlignContent::SPACE_EVENLY));
     self
   }
   fn justify_stretch(mut self) -> Self {
-    self.style().justify_content = Some(taffy::AlignContent::STRETCH);
+    self.style().justify_content = Some(Some(taffy::AlignContent::STRETCH));
     self
   }
 
   fn gap(mut self, value: f32) -> Self {
-    self.style().gap = taffy::Size::length(value);
+    self.style().gap = taffy::Size::length(value).into();
     self
   }
   fn gap_x(mut self, x: f32) -> Self {
-    self.style().gap.width = taffy::LengthPercentage::length(x);
+    self.style().gap.width = Some(taffy::LengthPercentage::length(x));
     self
   }
   fn gap_y(mut self, y: f32) -> Self {
-    self.style().gap.height = taffy::LengthPercentage::length(y);
+    self.style().gap.height = Some(taffy::LengthPercentage::length(y));
     self
   }
 
   fn flex_row(mut self) -> Self {
-    self.style().flex_direction = taffy::FlexDirection::Row;
+    self.style().flex_direction = Some(taffy::FlexDirection::Row);
     self
   }
   fn flex_row_reverse(mut self) -> Self {
-    self.style().flex_direction = taffy::FlexDirection::RowReverse;
+    self.style().flex_direction = Some(taffy::FlexDirection::RowReverse);
     self
   }
   fn flex_col(mut self) -> Self {
-    self.style().flex_direction = taffy::FlexDirection::Column;
+    self.style().flex_direction = Some(taffy::FlexDirection::Column);
     self
   }
   fn flex_col_reverse(mut self) -> Self {
-    self.style().flex_direction = taffy::FlexDirection::ColumnReverse;
+    self.style().flex_direction = Some(taffy::FlexDirection::ColumnReverse);
     self
   }
 
   fn flex_nowrap(mut self) -> Self {
-    self.style().flex_wrap = taffy::FlexWrap::NoWrap;
+    self.style().flex_wrap = Some(taffy::FlexWrap::NoWrap);
     self
   }
   fn flex_wrap(mut self) -> Self {
-    self.style().flex_wrap = taffy::FlexWrap::Wrap;
+    self.style().flex_wrap = Some(taffy::FlexWrap::Wrap);
     self
   }
   fn flex_wrap_reverse(mut self) -> Self {
-    self.style().flex_wrap = taffy::FlexWrap::WrapReverse;
+    self.style().flex_wrap = Some(taffy::FlexWrap::WrapReverse);
     self
   }
 
   fn flex_basis(mut self, value: f32) -> Self {
-    self.style().flex_basis = taffy::Dimension::length(value);
+    self.style().flex_basis = Some(taffy::Dimension::length(value));
     self
   }
   fn flex_grow(mut self, value: f32) -> Self {
-    self.style().flex_grow = value;
+    self.style().flex_grow = Some(value);
     self
   }
   fn flex_shrink(mut self, value: f32) -> Self {
-    self.style().flex_shrink = value;
+    self.style().flex_shrink = Some(value);
     self
   }
 
   fn grid_rows(mut self, rows: u16) -> Self {
-    self.style().grid_template_rows = vec![taffy::style_helpers::repeat(
+    self.style().grid_template_rows = Some(vec![taffy::style_helpers::repeat(
       rows,
       vec![taffy::style_helpers::minmax(
         taffy::style_helpers::length(0.),
         taffy::style_helpers::fr(1.),
       )],
-    )];
+    )]);
     self
   }
   fn grid_cols(mut self, rows: u16) -> Self {
-    self.style().grid_template_columns = vec![taffy::style_helpers::repeat(
-      rows,
-      vec![taffy::style_helpers::minmax(
-        taffy::style_helpers::min_content(),
-        taffy::style_helpers::fr(1.),
-      )],
-    )];
+    self.style().grid_template_columns =
+      Some(vec![taffy::style_helpers::repeat(
+        rows,
+        vec![taffy::style_helpers::minmax(
+          taffy::style_helpers::min_content(),
+          taffy::style_helpers::fr(1.),
+        )],
+      )]);
     self
   }
 }
-impl StyleableElement for taffy::Style {
-  fn style(&mut self) -> &mut taffy::Style {
+impl StyleableElement for StyleRefinement {
+  fn style(&mut self) -> &mut StyleRefinement {
     self
   }
 }
@@ -1288,56 +1299,3 @@ pub trait ElementExt {
   }
 }
 impl<T> ElementExt for T where T: IntoElement {}
-
-pub(crate) fn apply_style(this: &mut taffy::Style, other: taffy::Style) {
-  this.display = other.display;
-  this.item_is_table = other.item_is_table;
-  this.item_is_replaced = other.item_is_replaced;
-  this.box_sizing = other.box_sizing;
-  this.direction = other.direction;
-
-  this.overflow = other.overflow;
-  this.scrollbar_width = other.scrollbar_width;
-
-  this.position = other.position;
-  this.inset = other.inset;
-
-  this.size = other.size;
-  this.min_size = other.min_size;
-  this.max_size = other.max_size;
-  this.aspect_ratio = other.aspect_ratio;
-
-  this.margin = other.margin;
-  this.padding = other.padding;
-  this.border = other.border;
-
-  this.align_items = other.align_items;
-  this.align_self = other.align_self;
-  this.justify_items = other.justify_items;
-  this.justify_self = other.justify_self;
-  this.align_content = other.align_content;
-  this.justify_content = other.justify_content;
-  this.gap = other.gap;
-
-  this.text_align = other.text_align;
-
-  this.flex_direction = other.flex_direction;
-  this.flex_wrap = other.flex_wrap;
-
-  this.flex_basis = other.flex_basis;
-  this.flex_grow = other.flex_grow;
-  this.flex_shrink = other.flex_shrink;
-
-  this.grid_template_rows = other.grid_template_rows;
-  this.grid_template_columns = other.grid_template_columns;
-  this.grid_auto_rows = other.grid_auto_rows;
-  this.grid_auto_columns = other.grid_auto_columns;
-  this.grid_auto_flow = other.grid_auto_flow;
-
-  this.grid_template_areas = other.grid_template_areas;
-  this.grid_template_column_names = other.grid_template_column_names;
-  this.grid_template_row_names = other.grid_template_row_names;
-
-  this.grid_row = other.grid_row;
-  this.grid_column = other.grid_column;
-}

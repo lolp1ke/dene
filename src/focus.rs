@@ -45,17 +45,6 @@ impl FocusHandle {
       tab_stop: false,
     }
   }
-  pub(crate) fn for_id(id: FocusId, focus_map: &FocusMap) -> Option<Self> {
-    let lock = focus_map.0.read();
-    let focus = lock.get(id)?;
-    Some(Self {
-      id,
-      focus_map: focus_map.clone(),
-      tab_index: focus.tab_index,
-      tab_stop: focus.tab_stop,
-    })
-  }
-
   pub(crate) fn tab_index(&mut self, tab_index: isize) {
     if let Some(focus_ref) = self.focus_map.write().get_mut(self.id) {
       focus_ref.tab_index = tab_index;

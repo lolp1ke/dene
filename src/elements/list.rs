@@ -3,9 +3,10 @@
 use std::ops::Range;
 
 use crate::{
-  App, Component, Context, Entity, EventDispatcher, FocusHandle, Focusable,
-  InteractiveElement, IntoElement, Keybind, Keystroke, ParentElement, Render,
-  RenderOnce, ScrollHandle, StyleableElement, Window, div,
+  App, Component, Context, ElementExt, Entity, EventDispatcher, FocusHandle,
+  Focusable, InteractiveElement, IntoElement, Keybind, Keystroke,
+  ParentElement, Render, RenderOnce, ScrollHandle, StyleRefinement,
+  StyleableElement, Window, div,
 };
 
 mod actions {
@@ -37,7 +38,7 @@ where
   A: ListAdapter,
 {
   state: Entity<ListState<A>>,
-  style: taffy::Style,
+  style: StyleRefinement,
   tab_index: isize,
 }
 impl<A> List<A>
@@ -47,7 +48,7 @@ where
   pub fn new(state: &Entity<ListState<A>>) -> Self {
     Self {
       state: state.clone(),
-      style: taffy::Style::DEFAULT,
+      style: Default::default(),
       tab_index: 0,
     }
   }
@@ -58,8 +59,13 @@ where
 {
   fn render(self, window: &mut Window, cx: &mut App) -> impl IntoElement {
     let state = self.state.read(cx);
+    let style = self.style.clone();
 
     div()
+      .map(|mut this| {
+        *this.style() = style;
+        this
+      })
       .key_context(KEY_CONTEXT)
       .track_focus(&state.focus_handle)
       .tab_index(self.tab_index)
@@ -84,7 +90,7 @@ impl<A> StyleableElement for List<A>
 where
   A: ListAdapter,
 {
-  fn style(&mut self) -> &mut taffy::Style {
+  fn style(&mut self) -> &mut StyleRefinement {
     &mut self.style
   }
 }

@@ -4,9 +4,15 @@ use smallvec::SmallVec;
 
 use crate::{
   AnyElement, App, Element, Hitbox, InteractiveElement, Interactivity,
-  IntoElement, ParentElement, Pos, Rect, Size, StyleableElement, Window,
-  apply_style, get_terminal,
+  IntoElement, ParentElement, Pos, Rect, Refine, Size, Style, StyleRefinement,
+  StyleableElement, Window, get_terminal,
 };
+
+#[doc(hidden)]
+pub struct DivRequestLayoutState {
+  child_node_ids: SmallVec<[taffy::NodeId; 8]>,
+  style: taffy::Style,
+}
 
 #[derive(Debug)]
 #[derive(Default)]
@@ -15,7 +21,7 @@ pub struct Div {
   children: Vec<AnyElement>,
 }
 impl Element for Div {
-  type RequestLayoutState = SmallVec<[taffy::NodeId; 8]>;
+  type RequestLayoutState = DivRequestLayoutState;
   type PreRenderState = Option<Hitbox>;
 
   fn request_layout(
@@ -23,9 +29,6 @@ impl Element for Div {
     window: &mut Window,
     cx: &mut App,
   ) -> (taffy::NodeId, Self::RequestLayoutState) {
-    // let mut final_style = self.interactivity.base_style.clone();
-    // apply_style(&mut final_style, self.interactivity.base_style.clone());
-
     if self.interactivity.focusable
       && self.interactivity.tracking_focus_handle.is_none()
     {
@@ -37,26 +40,33 @@ impl Element for Div {
       self.interactivity.tracking_focus_handle = Some(focus_handle);
     };
 
+    if let Some(focus_handle) =
+      self.interactivity.tracking_focus_handle.as_ref()
+    {
+      window.set_default_focus(focus_handle);
+    }
+
+    let mut style = Style::default();
+    style.refine(&self.interactivity.base_style);
+    if self
+      .interactivity
+      .tracking_focus_handle
+      .as_ref()
+      .is_some_and(|handle| handle.is_focused(window))
+    {
+      style.refine(&self.interactivity.focus_style);
+    }
+    let style: taffy::Style = style.into();
+
     if let Some(scroll_handle) =
       self.interactivity.tracking_scroll_handle.as_ref()
     {
       self.interactivity.scroll_offset =
         Some(scroll_handle.0.borrow().offset.clone());
-    } else if matches!(
-      self.interactivity.base_style.overflow.x,
-      taffy::Overflow::Scroll
-    ) || matches!(
-      self.interactivity.base_style.overflow.y,
-      taffy::Overflow::Scroll
-    ) {
-      todo!();
-    };
-
-    if let Some(focus_style) = self.interactivity.focus_style.as_ref()
-      && window.focused(cx).is_some()
+    } else if matches!(style.overflow.x, taffy::Overflow::Scroll)
+      || matches!(style.overflow.y, taffy::Overflow::Scroll)
     {
-      // apply_style(&mut final_style, focus_style.clone());
-      // final_style = focus_style.clone();
+      todo!();
     };
 
     let child_node_ids = self
@@ -65,13 +75,14 @@ impl Element for Div {
       .map(|child| child.request_layout(window, cx))
       .collect::<SmallVec<_>>();
 
-    let node_id = window.request_layout(
-      self.interactivity.base_style.clone(),
-      // final_style,
-      &child_node_ids,
-      cx,
-    );
-    (node_id, child_node_ids)
+    let node_id = window.request_layout(style.clone(), &child_node_ids, cx);
+    (
+      node_id,
+      DivRequestLayoutState {
+        child_node_ids,
+        style,
+      },
+    )
   }
   fn pre_render(
     &mut self,
@@ -94,17 +105,17 @@ impl Element for Div {
       y: u16::MAX,
     };
     let mut child_max = Pos::default();
-    let _content_size = if request_layout.is_empty() {
+    let _content_size = if request_layout.child_node_ids.is_empty() {
       bounds.as_size()
     } else if let Some(scroll_handle) =
       self.interactivity.tracking_scroll_handle.as_ref()
     {
-      for child_node_id in request_layout.iter() {
+      for child_node_id in request_layout.child_node_ids.iter() {
         let child_bounds = window.layout_bounds(*child_node_id);
         child_min = child_min.min(child_bounds.as_pos());
         child_max = child_max.max(child_bounds.as_bottom_right_pos());
       }
-      let border = self.interactivity.base_style.border;
+      let border = request_layout.style.border;
       let bl = border.left.into_raw().value() as u16;
       let br = border.right.into_raw().value() as u16;
       let bt = border.top.into_raw().value() as u16;
@@ -124,7 +135,7 @@ impl Element for Div {
       scroll_handle.0.borrow_mut().content_size = content_size;
       content_size
     } else {
-      for child_node_id in request_layout.iter() {
+      for child_node_id in request_layout.child_node_ids.iter() {
         let child_bounds = window.layout_bounds(*child_node_id);
         child_min = child_min.min(child_bounds.as_pos());
         child_max = child_max.max(child_bounds.as_bottom_right_pos());
@@ -135,7 +146,7 @@ impl Element for Div {
       }
     };
 
-    if matches!(self.interactivity.base_style.display, taffy::Display::None) {
+    if matches!(request_layout.style.display, taffy::Display::None) {
       return None;
     };
 
@@ -148,12 +159,12 @@ impl Element for Div {
   fn render(
     &mut self,
     bounds: Rect,
-    _: &mut Self::RequestLayoutState,
+    request_layout: &mut Self::RequestLayoutState,
     _: &mut Self::PreRenderState,
     window: &mut Window,
     cx: &mut App,
   ) {
-    if matches!(self.interactivity.base_style.display, taffy::Display::None) {
+    if matches!(request_layout.style.display, taffy::Display::None) {
       return;
     };
 
@@ -175,13 +186,13 @@ impl Element for Div {
       .as_ref()
       .map(|pos| *pos.borrow())
       .unwrap_or_default();
-    let border = self.interactivity.base_style.border;
+    let border = request_layout.style.border;
     let bt = border.top.into_raw().value() as u16;
     let bb = border.bottom.into_raw().value() as u16;
     let bl = border.left.into_raw().value() as u16;
     let br = border.right.into_raw().value() as u16;
     let has_border = (bl | br | bt | bb) > 0;
-    let overflow = self.interactivity.base_style.overflow;
+    let overflow = request_layout.style.overflow;
     let clip_x = has_border
       || matches!(
         overflow.x,
@@ -229,7 +240,7 @@ impl Element for Div {
     if has_clip {
       get_terminal().write().clip_rect_stack.pop();
     };
-    let border = self.interactivity.base_style.border;
+    let border = request_layout.style.border;
     draw_border(bounds, border);
   }
 }
@@ -252,7 +263,7 @@ impl ParentElement for Div {
   }
 }
 impl StyleableElement for Div {
-  fn style(&mut self) -> &mut taffy::Style {
+  fn style(&mut self) -> &mut StyleRefinement {
     &mut self.interactivity.base_style
   }
 }

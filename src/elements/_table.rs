@@ -5,8 +5,8 @@ use std::sync::Arc;
 use crate::{
   AnyElement, App, Component, Context, ElementExt, Entity, EventDispatcher,
   FocusHandle, Focusable, InteractiveElement, IntoElement, Keybind, Keystroke,
-  ParentElement, Render, RenderOnce, ScrollHandle, StyleableElement, TextAlign,
-  Window, div,
+  ParentElement, Render, RenderOnce, ScrollHandle, StyleRefinement,
+  StyleableElement, TextAlign, Window, div,
 };
 
 mod actions {
@@ -81,12 +81,17 @@ where
 
 #[derive(Debug)]
 pub struct TableDummy {
-  style: taffy::Style,
+  style: StyleRefinement,
   children: Vec<AnyElement>,
 }
 impl RenderOnce for TableDummy {
-  fn render(self, window: &mut Window, cx: &mut App) -> impl IntoElement {
-    div().children(self.children)
+  fn render(self, _: &mut Window, _: &mut App) -> impl IntoElement {
+    div()
+      .map(|mut this| {
+        *this.style() = self.style;
+        this
+      })
+      .children(self.children)
   }
 }
 impl IntoElement for TableDummy {
@@ -97,7 +102,7 @@ impl IntoElement for TableDummy {
   }
 }
 impl StyleableElement for TableDummy {
-  fn style(&mut self) -> &mut taffy::Style {
+  fn style(&mut self) -> &mut StyleRefinement {
     &mut self.style
   }
 }
@@ -115,12 +120,15 @@ impl ParentElement for TableDummy {
 
 #[derive(Debug)]
 pub struct TableHeader {
-  style: taffy::Style,
+  style: StyleRefinement,
   children: Vec<AnyElement>,
 }
 impl RenderOnce for TableHeader {
-  fn render(self, window: &mut Window, cx: &mut App) -> impl IntoElement {
-    div()
+  fn render(self, _: &mut Window, _: &mut App) -> impl IntoElement {
+    div().map(|mut this| {
+      *this.style() = self.style;
+      this
+    })
   }
 }
 impl IntoElement for TableHeader {
@@ -131,7 +139,7 @@ impl IntoElement for TableHeader {
   }
 }
 impl StyleableElement for TableHeader {
-  fn style(&mut self) -> &mut taffy::Style {
+  fn style(&mut self) -> &mut StyleRefinement {
     &mut self.style
   }
 }
@@ -149,12 +157,15 @@ impl ParentElement for TableHeader {
 
 #[derive(Debug)]
 pub struct TableBody {
-  style: taffy::Style,
+  style: StyleRefinement,
   children: Vec<AnyElement>,
 }
 impl RenderOnce for TableBody {
-  fn render(self, window: &mut Window, cx: &mut App) -> impl IntoElement {
-    div()
+  fn render(self, _: &mut Window, _: &mut App) -> impl IntoElement {
+    div().map(|mut this| {
+      *this.style() = self.style;
+      this
+    })
   }
 }
 impl IntoElement for TableBody {
@@ -165,7 +176,7 @@ impl IntoElement for TableBody {
   }
 }
 impl StyleableElement for TableBody {
-  fn style(&mut self) -> &mut taffy::Style {
+  fn style(&mut self) -> &mut StyleRefinement {
     &mut self.style
   }
 }
@@ -183,12 +194,15 @@ impl ParentElement for TableBody {
 
 #[derive(Debug)]
 pub struct TableFooter {
-  style: taffy::Style,
+  style: StyleRefinement,
   children: Vec<AnyElement>,
 }
 impl RenderOnce for TableFooter {
-  fn render(self, window: &mut Window, cx: &mut App) -> impl IntoElement {
-    div()
+  fn render(self, _: &mut Window, _: &mut App) -> impl IntoElement {
+    div().map(|mut this| {
+      *this.style() = self.style;
+      this
+    })
   }
 }
 impl IntoElement for TableFooter {
@@ -199,7 +213,7 @@ impl IntoElement for TableFooter {
   }
 }
 impl StyleableElement for TableFooter {
-  fn style(&mut self) -> &mut taffy::Style {
+  fn style(&mut self) -> &mut StyleRefinement {
     &mut self.style
   }
 }
@@ -217,7 +231,7 @@ impl ParentElement for TableFooter {
 
 #[derive(Debug)]
 pub struct TableRow {
-  style: taffy::Style,
+  style: StyleRefinement,
   children: Vec<AnyElement>,
 }
 impl RenderOnce for TableRow {
@@ -240,7 +254,7 @@ impl IntoElement for TableRow {
   }
 }
 impl StyleableElement for TableRow {
-  fn style(&mut self) -> &mut taffy::Style {
+  fn style(&mut self) -> &mut StyleRefinement {
     &mut self.style
   }
 }
@@ -258,14 +272,19 @@ impl ParentElement for TableRow {
 
 #[derive(Debug)]
 pub struct TableHead {
-  style: taffy::Style,
+  style: StyleRefinement,
   children: Vec<AnyElement>,
   col_span: usize,
   align: TextAlign,
 }
 impl RenderOnce for TableHead {
-  fn render(self, window: &mut Window, cx: &mut App) -> impl IntoElement {
-    div().children(self.children)
+  fn render(self, _: &mut Window, _: &mut App) -> impl IntoElement {
+    div()
+      .map(|mut this| {
+        *this.style() = self.style;
+        this
+      })
+      .children(self.children)
   }
 }
 impl IntoElement for TableHead {
@@ -276,7 +295,7 @@ impl IntoElement for TableHead {
   }
 }
 impl StyleableElement for TableHead {
-  fn style(&mut self) -> &mut taffy::Style {
+  fn style(&mut self) -> &mut StyleRefinement {
     &mut self.style
   }
 }
@@ -294,14 +313,14 @@ impl ParentElement for TableHead {
 
 #[derive(Debug)]
 pub struct TableCell {
-  style: taffy::Style,
+  style: StyleRefinement,
   children: Vec<AnyElement>,
   align: TextAlign,
 }
 impl TableCell {
   pub fn new() -> Self {
     Self {
-      style: taffy::Style::DEFAULT,
+      style: Default::default(),
       children: Vec::new(),
       align: TextAlign::Left,
     }
@@ -346,7 +365,7 @@ impl IntoElement for TableCell {
   }
 }
 impl StyleableElement for TableCell {
-  fn style(&mut self) -> &mut taffy::Style {
+  fn style(&mut self) -> &mut StyleRefinement {
     &mut self.style
   }
 }
@@ -472,15 +491,17 @@ where
           this.flex_basis(0.).flex_grow(1.).flex_shrink(1.)
         })
         .when(w > 0.0, |mut this| {
-          this.style().size.width = taffy::Dimension::length(w as f32);
+          this.style().size.width = Some(taffy::Dimension::length(w as f32));
           this
         })
         .when(min_w > 0.0, |mut this| {
-          this.style().min_size.width = taffy::Dimension::length(min_w as f32);
+          this.style().min_size.width =
+            Some(taffy::Dimension::length(min_w as f32));
           this
         })
         .when(max_w > 0.0, |mut this| {
-          this.style().max_size.width = taffy::Dimension::length(max_w as f32);
+          this.style().max_size.width =
+            Some(taffy::Dimension::length(max_w as f32));
           this
         })
         .when(matches!(align, TextAlign::Center), |this| {

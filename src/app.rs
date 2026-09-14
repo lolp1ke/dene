@@ -384,8 +384,7 @@ impl App {
       _ = active_window.update(self, |_, window, cx| {
         window.mouse_position = pos;
         window.dispatch_mouse_event(mouse_event, cx);
-      });
-      _ = active_window.update(self, |_, window, cx| {
+
         if window.dirty {
           window.render(cx);
         };

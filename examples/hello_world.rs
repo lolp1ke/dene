@@ -106,7 +106,6 @@ impl Render for HelloWorld {
       .flex()
       .flex_col()
       .gap_y(10.)
-      .focused(|s| s.gap_y(15.))
       .items_center()
       .justify_center()
       .child("hello world")

@@ -9,7 +9,7 @@ use crate::{
   App, AppContext, Component, Context, Element, ElementExt, Entity,
   EventDispatcher, FocusHandle, Focusable, InputHandler, InteractiveElement,
   IntoElement, Keybind, Keystroke, ParentElement, RenderOnce, ScrollHandle,
-  StyleableElement, Task, Window, div, get_terminal,
+  StyleRefinement, StyleableElement, Task, Window, div, get_terminal,
 };
 
 mod actions {
@@ -48,7 +48,7 @@ use self::actions::*;
 #[derive(Debug)]
 pub struct Input {
   state: Entity<InputState>,
-  style: taffy::Style,
+  style: StyleRefinement,
   tab_index: isize,
   disabled: bool,
 }
@@ -56,7 +56,7 @@ impl Input {
   pub fn new(state: &Entity<InputState>) -> Self {
     Self {
       state: state.clone(),
-      style: taffy::Style::DEFAULT,
+      style: Default::default(),
       tab_index: 0,
       disabled: false,
     }
@@ -75,8 +75,13 @@ impl RenderOnce for Input {
   fn render(self, window: &mut Window, cx: &mut App) -> impl IntoElement {
     let state = self.state.read(cx);
     window.handle_input(&state.focus_handle, self.state.clone());
+    let style = self.style.clone();
 
     div()
+      .map(|mut this| {
+        *this.style() = style;
+        this
+      })
       .key_context(KEY_CONTEXT)
       .track_focus(&state.focus_handle)
       .tab_index(self.tab_index)
@@ -116,7 +121,7 @@ impl IntoElement for Input {
   }
 }
 impl StyleableElement for Input {
-  fn style(&mut self) -> &mut taffy::Style {
+  fn style(&mut self) -> &mut StyleRefinement {
     &mut self.style
   }
 }
