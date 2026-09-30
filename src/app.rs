@@ -134,7 +134,7 @@ pub struct App {
 }
 impl App {
   fn create() -> (Rc<RefCell<Self>>, UnboundedReceiver<ForegroundTask>) {
-    crate::init_tracing();
+    // crate::init_tracing();
     TERM
       .set(RwLock::new(Terminal::new()))
       .expect("failed to init terminal");
