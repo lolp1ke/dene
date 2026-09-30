@@ -897,21 +897,11 @@ pub trait StyleableElement: Sized {
     self.style().size.height = Some(taffy::Dimension::percent(1.));
     self
   }
-  fn size_auto(mut self) -> Self {
-    self.style().size = taffy::Size {
-      width: taffy::Dimension::auto(),
-      height: taffy::Dimension::auto(),
-    }
-    .into();
-    self
+  fn size_auto(self) -> Self {
+    self.w_auto().h_auto()
   }
-  fn size_full(mut self) -> Self {
-    self.style().size = taffy::Size {
-      width: taffy::Dimension::percent(1.),
-      height: taffy::Dimension::percent(1.),
-    }
-    .into();
-    self
+  fn size_full(self) -> Self {
+    self.w_full().h_full()
   }
 
   fn m(mut self, value: f32) -> Self {

@@ -27,6 +27,7 @@ fn main() {
 struct HelloWorld {
   focus_handle: FocusHandle,
   input: Entity<InputState>,
+  input2: Entity<InputState>,
   list: Entity<ListState<HelloWorldListAdapter>>,
 
   search: String,
@@ -35,6 +36,7 @@ impl HelloWorld {
   fn new(cx: &mut Context<Self>) -> Self {
     let this = cx.entity();
     let input = cx.new_entity(InputState::new);
+    let input2 = cx.new_entity(InputState::new);
     let list = cx.new_entity(|cx| {
       ListState::new(
         HelloWorldListAdapter {
@@ -89,6 +91,7 @@ impl HelloWorld {
     Self {
       focus_handle: cx.focus_handle(),
       input,
+      input2,
       list,
       search: String::new(),
     }
@@ -106,7 +109,7 @@ impl Render for HelloWorld {
       .tab_stop(true)
       .flex()
       .flex_col()
-      .gap_y(10.)
+      .gap_y(3.)
       .items_center()
       .justify_center()
       .child("hello world")
@@ -121,6 +124,7 @@ impl Render for HelloWorld {
       )
       .child(Input::new(&self.input))
       .child(List::new(&self.list))
+      .child(Input::new(&self.input2).w_full())
   }
 }
 impl Focusable for HelloWorld {

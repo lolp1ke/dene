@@ -8,8 +8,9 @@ use smallvec::{SmallVec, smallvec};
 use crate::{
   App, AppContext, Component, Context, Element, ElementExt, Entity,
   EventDispatcher, FocusHandle, Focusable, InputHandler, InteractiveElement,
-  IntoElement, Keybind, Keystroke, ParentElement, RenderOnce, ScrollHandle,
-  StyleRefinement, StyleableElement, Task, Window, div, get_terminal,
+  IntoElement, Keybind, Keystroke, ParentElement, Refine, RenderOnce,
+  ScrollHandle, StyleRefinement, StyleableElement, Task, Window, div,
+  get_terminal,
 };
 
 mod actions {
@@ -79,7 +80,7 @@ impl RenderOnce for Input {
 
     div()
       .map(|mut this| {
-        *this.style() = style;
+        this.style().refine(&style);
         this
       })
       .key_context(KEY_CONTEXT)
@@ -97,6 +98,7 @@ impl RenderOnce for Input {
       })
       .child(
         div()
+          .size_full()
           .border()
           .min_w(32.)
           .min_h(3.)
