@@ -97,7 +97,7 @@ impl RenderOnce for Input {
       })
       .child(
         div()
-          .border(1.)
+          .border()
           .min_w(32.)
           .min_h(3.)
           .track_scroll(&state.scroll_handle)

@@ -64,6 +64,7 @@ impl HelloWorld {
         if let InputEvent::Submit(text) = event {
           this.update(cx, |this, _| {
             this.search = text.clone();
+            tracing::info!("input submit event: {}", text);
           });
         };
 
@@ -114,7 +115,7 @@ impl Render for HelloWorld {
           .flex()
           .flex_row()
           .gap_x(5.)
-          .border(1.)
+          .border()
           .child("one")
           .child("piece"),
       )

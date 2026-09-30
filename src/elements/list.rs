@@ -191,8 +191,8 @@ where
     cx: &mut Context<Self>,
   ) -> impl IntoElement {
     div().flex().flex_col().children(
-      // (0..self.adapter.items_len())
-      (self.visible_range.start..self.visible_range.end)
+      (0..self.adapter.items_len())
+        // (self.visible_range.start..self.visible_range.end)
         .flat_map(|idx| self.adapter.render_item(idx, window, cx)),
     )
   }

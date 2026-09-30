@@ -980,34 +980,34 @@ pub trait StyleableElement: Sized {
     self
   }
 
-  fn border(mut self, value: f32) -> Self {
-    self.style().border = taffy::Rect::length(value).into();
+  fn border(mut self) -> Self {
+    self.style().border = taffy::Rect::length(1.).into();
     self
   }
-  fn border_x(mut self, x: f32) -> Self {
-    self.style().border.left = Some(taffy::LengthPercentage::length(x));
-    self.style().border.right = Some(taffy::LengthPercentage::length(x));
+  fn border_x(mut self) -> Self {
+    self.style().border.left = Some(taffy::LengthPercentage::length(1.));
+    self.style().border.right = Some(taffy::LengthPercentage::length(1.));
     self
   }
-  fn border_y(mut self, y: f32) -> Self {
-    self.style().border.bottom = Some(taffy::LengthPercentage::length(y));
-    self.style().border.top = Some(taffy::LengthPercentage::length(y));
+  fn border_y(mut self) -> Self {
+    self.style().border.bottom = Some(taffy::LengthPercentage::length(1.));
+    self.style().border.top = Some(taffy::LengthPercentage::length(1.));
     self
   }
-  fn border_l(mut self, l: f32) -> Self {
-    self.style().border.left = Some(taffy::LengthPercentage::length(l));
+  fn border_l(mut self) -> Self {
+    self.style().border.left = Some(taffy::LengthPercentage::length(1.));
     self
   }
-  fn border_r(mut self, r: f32) -> Self {
-    self.style().border.right = Some(taffy::LengthPercentage::length(r));
+  fn border_r(mut self) -> Self {
+    self.style().border.right = Some(taffy::LengthPercentage::length(1.));
     self
   }
-  fn border_t(mut self, t: f32) -> Self {
-    self.style().border.top = Some(taffy::LengthPercentage::length(t));
+  fn border_t(mut self) -> Self {
+    self.style().border.top = Some(taffy::LengthPercentage::length(1.));
     self
   }
-  fn border_b(mut self, b: f32) -> Self {
-    self.style().border.bottom = Some(taffy::LengthPercentage::length(b));
+  fn border_b(mut self) -> Self {
+    self.style().border.bottom = Some(taffy::LengthPercentage::length(1.));
     self
   }
 

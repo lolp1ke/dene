@@ -42,7 +42,7 @@ impl Render for Lists {
         range.map(|index| div().px(1.).child(format!("{index:06}")))
       })
       .axis(Axis::Horizontal)
-      .border(1.)
+      .border()
       .min_h(3.)
       .max_h(3.);
 
@@ -55,7 +55,7 @@ impl Render for Lists {
           .child("  A measured two-line row")
       })
     })
-    .border(1.);
+    .border();
 
     div().size_full().flex().flex_col()
       .child("UniformList: wheel over either list to scroll. Ctrl-; then Ctrl-Q quits.")

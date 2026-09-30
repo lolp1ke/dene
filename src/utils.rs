@@ -1,6 +1,10 @@
 // SPDX-License-Identifier: Apache-2.0
 
-use std::{fs::OpenOptions, sync::Mutex};
+use std::{
+  fs::OpenOptions,
+  process::{Command, Stdio},
+  sync::Mutex,
+};
 
 use tracing::level_filters::LevelFilter;
 use tracing_subscriber::{EnvFilter, Layer};
@@ -11,10 +15,18 @@ pub(crate) fn init_tracing() {
   use tracing_subscriber::layer::SubscriberExt as _;
   use tracing_subscriber::util::SubscriberInitExt as _;
 
+  if let Err(err) = Command::new("mkfifo")
+    .arg(LOG_FIFO)
+    .stdin(Stdio::null())
+    .stderr(Stdio::null())
+    .stdout(Stdio::null())
+    .spawn()
+  {
+    #[cfg(debug_assertions)]
+    eprintln!("tracing pty pipe creation failed: {}", err);
+  };
   let Ok(pty_pipe) = OpenOptions::new().read(true).write(true).open(LOG_FIFO)
   else {
-    #[cfg(debug_assertions)]
-    eprintln!("run `mkfifo {}` to enable logs", LOG_FIFO);
     return;
   };
 
