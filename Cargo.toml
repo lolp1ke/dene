@@ -3,7 +3,6 @@
 [package]
 name = "dene"
 version.workspace = true
-authors.workspace = true
 edition.workspace = true
 rust-version.workspace = true
 description.workspace = true
@@ -90,7 +89,6 @@ members = ["dene_macros"]
 
 [workspace.package]
 version = "0.1.0"
-authors = ["alibek <freed.alibek@gmail.com>"]
 edition = "2024"
 rust-version = "1.94.0"
 description = "powerful and blazingly fast terminal user interface library."
@@ -100,9 +98,12 @@ repository = "https://codeberg.org/lolp1ke/dene"
 license = "Apache-2.0"
 keywords = ["tui", "terminal"]
 categories = ["command-line-interface", "gui"]
-exclude = ["*.log"]
-include = ["LICENSE-APACHE", "**/*.rs", "Cargo.toml"]
+exclude = []
+include = ["LICENSE", "**/*.rs", "Cargo.toml"]
 publish = false
+
+[workspace.metadata]
+authors = ["alibek <freed.alibek@gmail.com>"]
 
 [workspace.dependencies]
 anyhow = { version = "1.0.104", default-features = false }

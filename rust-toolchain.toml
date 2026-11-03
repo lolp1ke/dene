@@ -2,6 +2,5 @@
 
 [toolchain]
 channel = "1.94.0"
-components = ["cargo", "rustfmt", "clippy", "rust-analyzer"]
-targets = ["aarch64-apple-darwin"]
+targets = ["aarch64-apple-darwin", "x86_64-unknown-linux-musl"]
 profile = "minimal"

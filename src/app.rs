@@ -4,6 +4,7 @@ use std::{
   any::{Any, TypeId},
   cell::RefCell,
   collections::VecDeque,
+  fmt::Write as _,
   rc::{self, Rc},
   sync::{
     Arc,
@@ -27,8 +28,8 @@ use crate::{
   EventDispatcherSet, FocusHandle, FocusMap, FocusNext, FocusPrev,
   ForegroundExecutor, ForegroundTask, Global, KeyDownEvent, KeyUpEvent,
   Keybind, Keybinds, Keystroke, MouseButtonDownEvent, MouseButtonUpEvent, Pos,
-  Quit, Render, ScrollWheelEvent, TERM, Task, Terminal, Window, WindowHandle,
-  WindowId, WindowOptions, elements, get_terminal,
+  Quit, Render, ScrollWheelEvent, TERMINAL, Task, Terminal, Window,
+  WindowHandle, WindowId, WindowOptions, elements, get_terminal,
 };
 
 mod async_app;
@@ -135,15 +136,13 @@ pub struct App {
 impl App {
   fn create() -> (Rc<RefCell<Self>>, UnboundedReceiver<ForegroundTask>) {
     // crate::init_tracing();
-    TERM
+    TERMINAL
       .set(RwLock::new(Terminal::new()))
       .expect("failed to init terminal");
 
     let panic_hook = std::panic::take_hook();
     std::panic::set_hook(Box::new(move |info| {
-      if let Some(t) = TERM.get() {
-        t.write().restore();
-      };
+      get_terminal().write().restore();
 
       (panic_hook)(info);
     }));
@@ -429,14 +428,8 @@ impl App {
       term_event::KeyCode::BackTab => keystroke.push_str("tab"),
       term_event::KeyCode::Delete => keystroke.push_str("delete"),
       term_event::KeyCode::F(f) => {
-        keystroke.push('f');
-        if f < 10 {
-          keystroke.push((f + 48) as char);
-        } else {
-          // NOTE: won't work on f > 99
-          //       keystroke.push('1'); // mb hardcode it? who has fn19 and greator anyway?
-          keystroke.push((f / 9 + 48) as char);
-          keystroke.push((f - 10 + 48) as char);
+        if let Err(err) = write!(keystroke, "f{}", f) {
+          tracing::error!("keystroke `f` key write failed: {:?}", err);
         };
       }
       term_event::KeyCode::Char(ch) => {

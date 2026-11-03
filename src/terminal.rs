@@ -12,11 +12,11 @@ use unicode_width::UnicodeWidthStr;
 
 use crate::{Color, Rect, Rgb};
 
-pub(crate) static TERM: OnceLock<RwLock<Terminal>> = OnceLock::new();
+pub(crate) static TERMINAL: OnceLock<RwLock<Terminal>> = OnceLock::new();
 
 #[inline]
 pub(crate) fn get_terminal() -> &'static RwLock<Terminal> {
-  TERM.get().expect("call `Terminal::new()` first")
+  TERMINAL.get().expect("call `Terminal::new()` first")
 }
 
 #[derive(Debug)]
