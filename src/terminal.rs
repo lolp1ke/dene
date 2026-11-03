@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use std::{
-  io::{Stdout, Write as _, stdout},
+  io::{Stdout, Write, stdout},
   sync::{Arc, OnceLock},
 };
 
@@ -10,7 +10,7 @@ use parking_lot::RwLock;
 use unicode_segmentation::UnicodeSegmentation;
 use unicode_width::UnicodeWidthStr;
 
-use crate::{Rect, Rgb};
+use crate::{Color, Rect, Rgb};
 
 pub(crate) static TERM: OnceLock<RwLock<Terminal>> = OnceLock::new();
 
@@ -23,8 +23,8 @@ pub(crate) fn get_terminal() -> &'static RwLock<Terminal> {
 pub(crate) struct AnsiOverlay {
   x: u16,
   y: u16,
+  width: u16,
   ansi: Arc<str>,
-  text: Arc<str>,
 }
 
 #[derive(Debug)]
@@ -49,6 +49,8 @@ impl Terminal {
     _ = execute!(
       stdout,
       terminal::EnterAlternateScreen,
+      style::ResetColor,
+      style::SetAttribute(style::Attribute::Reset),
       terminal::Clear(terminal::ClearType::All),
       cursor::Hide,
     );
@@ -63,6 +65,11 @@ impl Terminal {
       event::EnableMouseCapture,
     );
     let (width, height) = Self::size();
+
+    Self::with_size(stdout, width, height)
+  }
+
+  fn with_size(stdout: Stdout, width: u16, height: u16) -> Self {
     let buf_len = width as usize * height as usize;
 
     Self {
@@ -140,9 +147,14 @@ impl Terminal {
     self.ansi_overlays.clear();
   }
   pub(crate) fn render(&mut self) {
-    for overlay in self.prev_ansi_overlays.iter() {
-      _ = queue!(self.stdout, cursor::MoveTo(overlay.x, overlay.y));
-      _ = queue!(self.stdout, style::Print(&*overlay.text));
+    for overlay in &self.prev_ansi_overlays {
+      let start = usize::from(overlay.y) * usize::from(self.width)
+        + usize::from(overlay.x);
+      for cell in
+        &mut self.front.cells[start..start + usize::from(overlay.width)]
+      {
+        cell.symbol = "\0".into();
+      }
     }
 
     let w = self.width as usize;
@@ -162,9 +174,14 @@ impl Terminal {
       let x = (i % w) as u16;
       let y = (i / w) as u16;
       let run_start = i;
+      let cell = &self.back.cells[run_start];
       let mut text = String::with_capacity(8);
 
-      while i < total && self.back.cells[i] != self.front.cells[i] {
+      while i < total
+        && self.back.cells[i] != self.front.cells[i]
+        && self.back.cells[i].fg == cell.fg
+        && self.back.cells[i].bg == cell.bg
+      {
         text.push_str(&self.back.cells[i].symbol);
         i += 1;
         if i % w == 0 {
@@ -172,10 +189,7 @@ impl Terminal {
         };
       }
 
-      let cell = &self.back.cells[run_start];
-
       _ = queue!(self.stdout, cursor::MoveTo(x, y));
-
       if cell.fg != cur_fg {
         _ = queue!(self.stdout, style::SetForegroundColor(cell.fg.into()));
         cur_fg = cell.fg;
@@ -193,10 +207,17 @@ impl Terminal {
     };
 
     for overlay in self.ansi_overlays.iter() {
-      _ = queue!(self.stdout, cursor::MoveTo(overlay.x, overlay.y));
-      _ = queue!(self.stdout, style::Print(&*overlay.ansi));
-      _ = queue!(self.stdout, style::ResetColor);
-      _ = queue!(self.stdout, style::SetAttribute(style::Attribute::Reset));
+      let index = usize::from(overlay.y) * w + usize::from(overlay.x);
+      let cell = &self.back.cells[index];
+      _ = queue!(
+        self.stdout,
+        cursor::MoveTo(overlay.x, overlay.y),
+        style::SetForegroundColor(cell.fg.into()),
+        style::SetBackgroundColor(cell.bg.into()),
+        style::Print(&*overlay.ansi),
+        style::ResetColor,
+        style::SetAttribute(style::Attribute::Reset),
+      );
     }
 
     _ = self.stdout.flush();
@@ -207,6 +228,8 @@ impl Terminal {
     _ = terminal::disable_raw_mode();
     _ = execute!(
       self.stdout,
+      style::ResetColor,
+      style::SetAttribute(style::Attribute::Reset),
       cursor::MoveTo(0, 0),
       terminal::Clear(terminal::ClearType::All),
       event::DisableMouseCapture,
@@ -244,6 +267,12 @@ impl Terminal {
         && !self.is_clipped(x.saturating_add(width as i64 - 1), y)
       {
         let index = y as usize * usize::from(self.width) + x as usize;
+        self.invalidate_overlays(Rect {
+          x: x as u16,
+          y: y as u16,
+          width: width as u16,
+          height: 1,
+        });
         self.back.write(index, grapheme, width);
       }
       x = x.saturating_add(width as i64);
@@ -301,8 +330,41 @@ impl Terminal {
     self.ansi_overlays.push(AnsiOverlay {
       x: visible.x,
       y: visible.y,
+      width: visible.width,
       ansi: ansi.into(),
-      text: text.into(),
+    });
+  }
+
+  pub(crate) fn fill_background(&mut self, bounds: Rect, color: Rgb) {
+    let visible = self.visible_bounds(bounds);
+    self.invalidate_overlays(visible);
+
+    let left = usize::from(visible.x);
+    let top = usize::from(visible.y);
+    let height = usize::from(visible.height);
+    let width = usize::from(visible.width);
+
+    for y in top..(top + height) {
+      for x in left..(left + width) {
+        let idx = y * usize::from(self.width) + x;
+        self.back.write(idx, " ", 1);
+        self.back.cells[idx].bg = Color::Rgb(color);
+      }
+    }
+  }
+
+  fn invalidate_overlays(&mut self, bounds: Rect) {
+    if bounds.width == 0 || bounds.height == 0 {
+      return;
+    }
+    let right = u32::from(bounds.x) + u32::from(bounds.width);
+    let bottom = u32::from(bounds.y) + u32::from(bounds.height);
+    self.ansi_overlays.retain(|overlay| {
+      u32::from(overlay.y) < u32::from(bounds.y)
+        || u32::from(overlay.y) >= bottom
+        || u32::from(overlay.x) >= right
+        || u32::from(overlay.x) + u32::from(overlay.width)
+          <= u32::from(bounds.x)
     });
   }
 
@@ -348,28 +410,29 @@ impl Buffer {
 
   fn clear(&mut self) {
     for cell in self.cells.iter_mut() {
-      cell.clear();
+      cell.clear_all();
     }
   }
 
-  fn write(&mut self, index: usize, symbol: &str, width: usize) {
-    // Replacing either half of an existing wide glyph invalidates it all.
-    for occupied in index..index + width {
+  fn write(&mut self, idx: usize, symbol: &str, width: usize) {
+    let background = self.cells[idx].bg;
+    for occupied in idx..idx + width {
       let mut start = occupied;
       while self.cells[start].width == 0 && start > 0 {
         start -= 1;
       }
       let end = start + self.cells[start].width as usize;
       for cell in &mut self.cells[start..end] {
-        cell.clear();
+        cell.clear_symbol();
       }
     }
-    self.cells[index].symbol.clear();
-    self.cells[index].symbol.push_str(symbol);
-    self.cells[index].width = width as u16;
-    for cell in &mut self.cells[index + 1..index + width] {
+    self.cells[idx].symbol.clear();
+    self.cells[idx].symbol.push_str(symbol);
+    self.cells[idx].width = width as u16;
+    for cell in &mut self.cells[idx + 1..idx + width] {
       cell.symbol.clear();
       cell.width = 0;
+      cell.bg = background;
     }
   }
   fn write_styled(
@@ -395,9 +458,10 @@ impl Buffer {
         continue;
       }
       self.write(idx, symbol, width);
-      let cell = &mut self.cells[idx];
-      cell.fg = fg;
-      cell.bg = bg;
+      for cell in &mut self.cells[idx..idx + width] {
+        cell.fg = fg;
+        cell.bg = bg;
+      }
       offset += width;
     }
   }
@@ -412,34 +476,15 @@ struct Cell {
   bg: Color,
 }
 impl Cell {
-  fn clear(&mut self) {
+  fn clear_all(&mut self) {
+    self.clear_symbol();
+    self.bg = Color::Reset;
+  }
+
+  fn clear_symbol(&mut self) {
     self.symbol.clear();
     self.symbol.push(' ');
     self.width = 1;
     self.fg = Color::Reset;
-    self.bg = Color::Reset;
-  }
-}
-
-#[derive(Debug)]
-#[derive(Clone, Copy)]
-#[derive(PartialEq)]
-pub enum Color {
-  Reset,
-  Rgb(Rgb),
-  Ansi(u8),
-}
-impl From<Color> for crossterm::style::Color {
-  fn from(value: Color) -> Self {
-    use crossterm::style;
-    match value {
-      Color::Reset => style::Color::Reset,
-      Color::Rgb(Rgb { r, g, b }) => style::Color::Rgb {
-        r: (r * 255.0) as u8,
-        g: (g * 255.0) as u8,
-        b: (b * 255.0) as u8,
-      },
-      Color::Ansi(ansi) => style::Color::AnsiValue(ansi),
-    }
   }
 }

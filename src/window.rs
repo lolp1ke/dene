@@ -88,7 +88,7 @@ impl Window {
     &mut self,
     style: taffy::Style,
     children: &[taffy::NodeId],
-    cx: &mut App,
+    _cx: &mut App,
   ) -> taffy::NodeId {
     self.layout_engine.request_layout(style, children)
   }

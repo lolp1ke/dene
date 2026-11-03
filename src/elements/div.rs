@@ -11,7 +11,7 @@ use crate::{
 #[doc(hidden)]
 pub struct DivRequestLayoutState {
   child_node_ids: SmallVec<[taffy::NodeId; 8]>,
-  style: taffy::Style,
+  style: Style,
 }
 
 #[derive(Debug)]
@@ -56,8 +56,6 @@ impl Element for Div {
     {
       style.refine(&self.interactivity.focus_style);
     }
-    let style: taffy::Style = style.into();
-
     if let Some(scroll_handle) =
       self.interactivity.tracking_scroll_handle.as_ref()
     {
@@ -75,7 +73,8 @@ impl Element for Div {
       .map(|child| child.request_layout(window, cx))
       .collect::<SmallVec<_>>();
 
-    let node_id = window.request_layout(style.clone(), &child_node_ids, cx);
+    let node_id =
+      window.request_layout(style.clone().into(), &child_node_ids, cx);
     (
       node_id,
       DivRequestLayoutState {
@@ -166,6 +165,10 @@ impl Element for Div {
   ) {
     if matches!(request_layout.style.display, taffy::Display::None) {
       return;
+    };
+
+    if let Some(bg) = request_layout.style.background {
+      get_terminal().write().fill_background(bounds, bg);
     };
 
     let mut tab_index = None;

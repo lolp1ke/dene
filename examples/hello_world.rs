@@ -2,13 +2,11 @@
 
 use dene::{
   app::{App, AppContext, Application, Context},
+  color::rgb,
   element::{
-    Component, InteractiveElement, IntoElement, ParentElement, Render,
-    RenderOnce, StyleableElement,
+    InteractiveElement, IntoElement, ParentElement, Render, StyleableElement,
   },
-  elements::{
-    Input, InputEvent, InputState, List, ListAdapter, ListEvent, ListState, div,
-  },
+  elements::{Input, InputEvent, InputState, div},
   entity::Entity,
   focus::{FocusHandle, Focusable},
   window::Window,
@@ -28,7 +26,6 @@ struct HelloWorld {
   focus_handle: FocusHandle,
   input: Entity<InputState>,
   input2: Entity<InputState>,
-  list: Entity<ListState<HelloWorldListAdapter>>,
 
   search: String,
 }
@@ -37,27 +34,6 @@ impl HelloWorld {
     let this = cx.entity();
     let input = cx.new_entity(InputState::new);
     let input2 = cx.new_entity(InputState::new);
-    let list = cx.new_entity(|cx| {
-      ListState::new(
-        HelloWorldListAdapter {
-          items: vec![
-            HelloWorldListItem {
-              title: "one piece season 1".into(),
-              description: "peak".into(),
-            },
-            HelloWorldListItem {
-              title: "one piece season 2".into(),
-              description: "also peak".into(),
-            },
-            HelloWorldListItem {
-              title: "minecraft".into(),
-              description: "wonderful game".into(),
-            },
-          ],
-        },
-        cx,
-      )
-    });
 
     cx.on_event(&input, {
       let this = this.clone();
@@ -73,26 +49,11 @@ impl HelloWorld {
         true
       }
     });
-    cx.on_event(&list, move |_, event: &ListEvent, _| {
-      if let ListEvent::Select(idx) = event {
-        tracing::info!("current item idx: {}", idx);
-      };
-
-      true
-    });
-    cx.on_event(&list, move |_, event: &ListEvent, _| {
-      if let ListEvent::Submit(idx) = event {
-        tracing::info!("item: {} is being processed", idx);
-      };
-
-      true
-    });
 
     Self {
       focus_handle: cx.focus_handle(),
       input,
       input2,
-      list,
       search: String::new(),
     }
   }
@@ -119,59 +80,16 @@ impl Render for HelloWorld {
           .flex_row()
           .gap_x(5.)
           .border()
+          .bg(rgb(0x0000ff))
           .child("one")
           .child("piece"),
       )
       .child(Input::new(&self.input))
-      .child(List::new(&self.list))
       .child(Input::new(&self.input2).w_full())
   }
 }
 impl Focusable for HelloWorld {
   fn focus_handle(&self, _: &App) -> FocusHandle {
     self.focus_handle.clone()
-  }
-}
-
-struct HelloWorldListAdapter {
-  items: Vec<HelloWorldListItem>,
-}
-
-#[derive(Clone)]
-struct HelloWorldListItem {
-  title: String,
-  description: String,
-}
-impl RenderOnce for HelloWorldListItem {
-  fn render(self, _: &mut Window, _: &mut App) -> impl IntoElement {
-    div()
-      .grid()
-      .grid_cols(2)
-      .gap_x(3.)
-      .child(&self.title)
-      .child(&self.description)
-  }
-}
-impl IntoElement for HelloWorldListItem {
-  type Element = Component<Self>;
-
-  fn into_element(self) -> Self::Element {
-    Component::new(self)
-  }
-}
-impl ListAdapter for HelloWorldListAdapter {
-  type Item = HelloWorldListItem;
-
-  fn items_len(&self) -> usize {
-    self.items.len()
-  }
-
-  fn render_item(
-    &mut self,
-    idx: usize,
-    _: &mut Window,
-    _: &mut Context<ListState<Self>>,
-  ) -> Option<Self::Item> {
-    self.items.get(idx).cloned()
   }
 }

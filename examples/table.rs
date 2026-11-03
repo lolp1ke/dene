@@ -102,8 +102,8 @@ impl TableAdapter for TitlesAdapter {
     &mut self,
     row_idx: usize,
     col_idx: usize,
-    window: &mut Window,
-    cx: &mut Context<TableState<Self>>,
+    _window: &mut Window,
+    _cx: &mut Context<TableState<Self>>,
   ) -> impl IntoElement {
     let title = self.titles.get(row_idx).unwrap();
     let Some(col) = self.columns.get(col_idx) else {

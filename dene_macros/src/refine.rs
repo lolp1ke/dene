@@ -1,6 +1,9 @@
 use proc_macro2::TokenStream;
 use quote::{format_ident, quote};
-use syn::{Data, DeriveInput, Field, Fields, parse_macro_input, parse_quote};
+use syn::{
+  Data, DeriveInput, Field, Fields, GenericArgument, PathArguments, Type,
+  parse_macro_input, parse_quote,
+};
 
 pub(crate) fn refine(
   input: proc_macro::TokenStream,
@@ -62,7 +65,7 @@ fn expand(input: DeriveInput) -> syn::Result<TokenStream> {
         where_clause
           .predicates
           .push(parse_quote!(#ty: ::core::clone::Clone));
-      }
+      };
     }
   }
 
@@ -78,6 +81,10 @@ fn expand(input: DeriveInput) -> syn::Result<TokenStream> {
       quote! {
         #visibility #name: <#ty as Refine>::Refinement
       }
+    } else if is_optional(field) {
+      quote! {
+        #visibility #name: #ty
+      }
     } else {
       quote! {
         #visibility #name: ::core::option::Option<#ty>
@@ -92,11 +99,17 @@ fn expand(input: DeriveInput) -> syn::Result<TokenStream> {
       quote! {
         Refine::refine(&mut self.#name, &refinement.#name);
       }
+    } else if is_optional(field) {
+      quote! {
+        if refinement.#name.is_some() {
+          self.#name = refinement.#name.clone();
+        };
+      }
     } else {
       quote! {
         if let ::core::option::Option::Some(value) = &refinement.#name {
           self.#name = value.clone();
-        }
+        };
       }
     }
   });
@@ -203,5 +216,28 @@ fn is_nested(field: &Field) -> bool {
   field.attrs.iter().any(|attribute| {
     attribute.path().is_ident("refine")
       && matches!(attribute.meta, syn::Meta::Path(_))
+  })
+}
+
+fn is_optional(field: &Field) -> bool {
+  let Type::Path(ty) = &field.ty else {
+    return false;
+  };
+  if ty.qself.is_some() {
+    return false;
+  };
+  let segments = &ty.path.segments;
+  let standard_path = segments.len() == 1
+    || (segments.len() == 3
+      && (segments[0].ident == "std" || segments[0].ident == "core")
+      && segments[1].ident == "option");
+  standard_path && segments.last().is_some_and(|segment| {
+    segment.ident == "Option"
+      && matches!(
+        &segment.arguments,
+        PathArguments::AngleBracketed(arguments)
+          if arguments.args.len() == 1
+            && matches!(arguments.args.first(), Some(GenericArgument::Type(_)))
+      )
   })
 }
