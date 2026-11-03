@@ -2,6 +2,7 @@
 
 pub(crate) mod action;
 pub mod app;
+pub mod color;
 pub(crate) mod dispatch;
 pub mod element;
 pub mod elements;
@@ -31,6 +32,7 @@ pub mod private {
 
 pub(crate) use action::*;
 pub(crate) use app::*;
+pub(crate) use color::*;
 pub(crate) use dispatch::*;
 pub(crate) use element::*;
 pub(crate) use elements::*;

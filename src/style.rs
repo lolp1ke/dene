@@ -2,6 +2,8 @@
 
 pub use dene_macros::Refine;
 
+use crate::Rgb;
+
 #[derive(Debug)]
 #[derive(Clone, Copy)]
 #[derive(Default)]
@@ -48,7 +50,7 @@ macro_rules! geometry_refinement {
       }
     }
 
-    impl<T: Clone> Refine for taffy::$geometry<T> {
+    impl<T> Refine for taffy::$geometry<T> where T: Clone, {
       type Refinement = $refinement<T>;
 
       fn refine(&mut self, refinement: &Self::Refinement) {
@@ -60,7 +62,7 @@ macro_rules! geometry_refinement {
       }
     }
 
-    impl<T: Clone> Refine for $refinement<T> {
+    impl<T> Refine for $refinement<T> where T: Clone, {
       type Refinement = Self;
 
       fn refine(&mut self, refinement: &Self::Refinement) {
@@ -135,6 +137,8 @@ pub struct Style {
   pub flex_grow: f32,
   pub flex_shrink: f32,
 
+  pub background: Option<Rgb>,
+
   pub grid_template_rows: Vec<taffy::GridTemplateComponent<String>>,
   pub grid_template_columns: Vec<taffy::GridTemplateComponent<String>>,
   pub grid_auto_rows: Vec<taffy::TrackSizingFunction>,
@@ -187,6 +191,7 @@ impl From<taffy::Style> for Style {
       flex_basis: style.flex_basis,
       flex_grow: style.flex_grow,
       flex_shrink: style.flex_shrink,
+      background: None,
       grid_template_rows: style.grid_template_rows,
       grid_template_columns: style.grid_template_columns,
       grid_auto_rows: style.grid_auto_rows,
