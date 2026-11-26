@@ -115,6 +115,7 @@ actions! {
 
 pub struct MacroActionBuilder(pub fn() -> MacroActionData);
 inventory::collect!(MacroActionBuilder);
+#[derive(Clone, Copy)]
 pub struct MacroActionData {
   pub name: &'static str,
   pub type_id: TypeId,
@@ -136,9 +137,9 @@ pub(crate) struct ActionRegistry {
 impl ActionRegistry {
   pub(crate) fn new() -> Self {
     let mut this = Self {
-      by_name: Default::default(),
-      names: Default::default(),
-      names_by_type_id: Default::default(),
+      by_name: HashMap::default(),
+      names: Vec::default(),
+      names_by_type_id: FxHashMap::default(),
     };
     for builder in inventory::iter::<MacroActionBuilder> {
       let action = (builder.0)();
@@ -150,9 +151,11 @@ impl ActionRegistry {
 
   fn insert_action(&mut self, action: MacroActionData) {
     let name = action.name;
-    if self.by_name.contains_key(name) {
-      panic!("Action with name `{name}` already registered");
-    };
+    assert!(
+      !self.by_name.contains_key(name),
+      "action with name `{name}` already registered"
+    );
+
     self.by_name.insert(
       name,
       ActionData {
@@ -164,11 +167,9 @@ impl ActionRegistry {
   }
 
   pub(crate) fn get_by_name(&self, name: &str) -> Box<dyn Action> {
-    self
-      .by_name
-      .get(name)
-      .map(|b| (b.build)(toml::Value::String("()".to_string())).unwrap())
-      .unwrap_or(Box::new(NoAction))
+    self.by_name.get(name).map_or(Box::new(NoAction), |b| {
+      (b.build)(toml::Value::String("()".to_string())).unwrap()
+    })
   }
 }
 impl Default for ActionRegistry {

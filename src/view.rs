@@ -53,7 +53,7 @@ impl Element for AnyView {
     if let Some(mut element) = request_layout.take() {
       element.pre_render(window, cx);
       return Some(element);
-    };
+    }
     None
   }
   fn render(

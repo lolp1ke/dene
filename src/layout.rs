@@ -45,7 +45,7 @@ impl LayoutEngine {
       if width.is_none() && height.is_none() {
         width = Some(layout.size.width);
         height = Some(layout.size.height);
-      };
+      }
 
       current_id = self.engine.parent(id);
     }

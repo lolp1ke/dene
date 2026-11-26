@@ -17,6 +17,7 @@ pub struct AsyncApp {
   pub(crate) foreground_executor: ForegroundExecutor,
 }
 impl AsyncApp {
+  #[must_use]
   pub fn app(&self) -> Rc<RefCell<App>> {
     self.app.upgrade().expect("app is already been dropped")
   }

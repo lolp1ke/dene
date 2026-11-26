@@ -39,10 +39,12 @@ struct ScrollState {
 }
 
 impl UniformListScrollHandle {
+  #[must_use]
   pub fn new() -> Self {
     Self::default()
   }
 
+  #[must_use]
   pub fn offset(&self) -> usize {
     self.0.borrow().offset
   }
@@ -57,18 +59,22 @@ impl UniformListScrollHandle {
     self.0.borrow_mut().pending_item = Some((index, alignment));
   }
 
+  #[must_use]
   pub fn visible_range(&self) -> Range<usize> {
     self.0.borrow().visible_range.clone()
   }
 
+  #[must_use]
   pub fn item_extent(&self) -> usize {
     self.0.borrow().item_extent
   }
 
+  #[must_use]
   pub fn viewport_extent(&self) -> usize {
     self.0.borrow().viewport_extent
   }
 
+  #[must_use]
   pub fn content_extent(&self) -> usize {
     self.0.borrow().content_extent
   }
@@ -174,11 +180,13 @@ impl UniformList {
     }
   }
 
+  #[must_use]
   pub fn axis(mut self, axis: Axis) -> Self {
     self.axis = axis;
     self
   }
 
+  #[must_use]
   pub fn item_to_measure(mut self, index: usize) -> Self {
     self.measure_index = index;
     self
@@ -209,12 +217,12 @@ impl UniformList {
       Axis::Vertical => {
         slot = slot.flex_col();
         slot.style().size.width =
-          Some(Dimension::length(viewport.width as f32));
+          Some(Dimension::length(f32::from(viewport.width)));
       }
       Axis::Horizontal => {
         slot = slot.flex_row();
         slot.style().size.height =
-          Some(Dimension::length(viewport.height as f32));
+          Some(Dimension::length(f32::from(viewport.height)));
       }
     }
     slot.into_any_element()
@@ -307,7 +315,7 @@ impl Element for UniformList {
     let (available, viewport_extent) = match self.axis {
       Axis::Vertical => (
         taffy::Size {
-          width: AvailableSpace::Definite(viewport.width as f32),
+          width: AvailableSpace::Definite(f32::from(viewport.width)),
           height: AvailableSpace::MaxContent,
         },
         viewport.height,
@@ -315,7 +323,7 @@ impl Element for UniformList {
       Axis::Horizontal => (
         taffy::Size {
           width: AvailableSpace::MaxContent,
-          height: AvailableSpace::Definite(viewport.height as f32),
+          height: AvailableSpace::Definite(f32::from(viewport.height)),
         },
         viewport.width,
       ),
@@ -431,8 +439,8 @@ impl Element for UniformList {
       {
         let mut terminal = get_terminal().write();
         terminal.draw_offset = (
-          old_offset.0 + viewport.x as i64,
-          old_offset.1 + viewport.y as i64,
+          old_offset.0 + i64::from(viewport.x),
+          old_offset.1 + i64::from(viewport.y),
         );
         let mut slot = Rect {
           x: 0,

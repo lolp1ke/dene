@@ -23,6 +23,7 @@ pub trait Refine: Sized {
 
   fn refine(&mut self, refinement: &Self::Refinement);
 
+  #[must_use]
   fn refined(mut self, refinement: Self::Refinement) -> Self {
     self.refine(&refinement);
     self

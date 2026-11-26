@@ -48,6 +48,7 @@ impl<A> Table<A>
 where
   A: TableAdapter,
 {
+  #[must_use]
   pub fn new(state: &Entity<TableState<A>>) -> Self {
     Self {
       state: state.clone(),
@@ -318,22 +319,26 @@ pub struct TableCell {
   align: TextAlign,
 }
 impl TableCell {
+  #[must_use]
   pub fn new() -> Self {
     Self {
-      style: Default::default(),
+      style: StyleRefinement::default(),
       children: Vec::new(),
       align: TextAlign::Left,
     }
   }
 
+  #[must_use]
   pub fn text_left(mut self) -> Self {
     self.align = TextAlign::Left;
     self
   }
+  #[must_use]
   pub fn text_center(mut self) -> Self {
     self.align = TextAlign::Center;
     self
   }
+  #[must_use]
   pub fn text_right(mut self) -> Self {
     self.align = TextAlign::Right;
     self

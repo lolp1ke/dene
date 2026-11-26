@@ -39,12 +39,14 @@ mod actions {
       Down,
       Home,
       End,
-      Enter,
-      Escape,
+      Submit,
+      Cancel,
     ]
   }
 }
 use self::actions::*;
+
+const SAFE_MARGIN: usize = 3;
 
 #[derive(Debug)]
 pub struct Input {
@@ -54,19 +56,22 @@ pub struct Input {
   disabled: bool,
 }
 impl Input {
+  #[must_use]
   pub fn new(state: &Entity<InputState>) -> Self {
     Self {
       state: state.clone(),
-      style: Default::default(),
+      style: StyleRefinement::default(),
       tab_index: 0,
       disabled: false,
     }
   }
 
+  #[must_use]
   pub fn tab_index(mut self, tab_index: isize) -> Self {
     self.tab_index = tab_index;
     self
   }
+  #[must_use]
   pub fn disabled(mut self, disabled: bool) -> Self {
     self.disabled = disabled;
     self
@@ -93,8 +98,8 @@ impl RenderOnce for Input {
           .on_action(window.listener(&self.state, InputState::move_right))
           .on_action(window.listener(&self.state, InputState::move_up))
           .on_action(window.listener(&self.state, InputState::move_down))
-          .on_action(window.listener(&self.state, InputState::enter))
-          .on_action(window.listener(&self.state, InputState::escape))
+          .on_action(window.listener(&self.state, InputState::submit))
+          .on_action(window.listener(&self.state, InputState::cancel))
       })
       .child(
         div()
@@ -160,6 +165,7 @@ impl InputState {
       cursor: cursor_blinker,
     }
   }
+  #[must_use]
   pub fn placeholder<S>(mut self, placeholder: Option<S>) -> Self
   where
     S: Into<Arc<str>>,
@@ -176,7 +182,6 @@ impl InputState {
     }
     let mut offset = inner.offset.borrow_mut();
     let scroll_x = offset.x as usize;
-    const SAFE_MARGIN: usize = 3;
     if self.cursor_pos < scroll_x + SAFE_MARGIN {
       offset.x = self.cursor_pos.saturating_sub(SAFE_MARGIN) as u16;
     } else if self.cursor_pos >= scroll_x + viewport_width {
@@ -184,47 +189,54 @@ impl InputState {
     }
   }
 
+  #[allow(clippy::trivially_copy_pass_by_ref)]
   fn delete(&mut self, _: &Delete, _: &mut Window, _: &mut Context<Self>) {
     if self.text.len_chars() > 0 && self.cursor_pos > 0 {
       self.cursor_pos -= 1;
       self.text.remove(self.cursor_pos..=self.cursor_pos);
       self.ensure_cursor_visible();
-    };
+    }
   }
+  #[allow(clippy::trivially_copy_pass_by_ref)]
   fn move_left(&mut self, _: &Left, _: &mut Window, _: &mut Context<Self>) {
     if self.cursor_pos > 0 {
       self.cursor_pos -= 1;
       self.ensure_cursor_visible();
-    };
+    }
   }
+  #[allow(clippy::trivially_copy_pass_by_ref)]
   fn move_right(&mut self, _: &Right, _: &mut Window, _: &mut Context<Self>) {
     if self.cursor_pos < self.text.len_chars() {
       self.cursor_pos += 1;
       self.ensure_cursor_visible();
-    };
+    }
   }
+  #[allow(clippy::trivially_copy_pass_by_ref)]
   fn move_up(&mut self, _: &Up, _: &mut Window, _: &mut Context<Self>) {
     if matches!(self.mode, InputMode::SingleLine) {
       return;
-    };
+    }
 
     todo!();
   }
+  #[allow(clippy::trivially_copy_pass_by_ref)]
   fn move_down(&mut self, _: &Down, _: &mut Window, _: &mut Context<Self>) {
     if matches!(self.mode, InputMode::SingleLine) {
       return;
-    };
+    }
 
     todo!();
   }
-  fn enter(&mut self, _: &Enter, _: &mut Window, cx: &mut Context<Self>) {
+  #[allow(clippy::trivially_copy_pass_by_ref)]
+  fn submit(&mut self, _: &Submit, _: &mut Window, cx: &mut Context<Self>) {
     if matches!(self.mode, InputMode::MultiLine) {
       todo!("insert new line");
-    };
+    }
 
     cx.emit(InputEvent::Submit(self.text.to_string()));
   }
-  fn escape(&mut self, _: &Escape, _: &mut Window, _: &mut Context<Self>) {
+  #[allow(clippy::trivially_copy_pass_by_ref)]
+  fn cancel(&mut self, _: &Cancel, _: &mut Window, _: &mut Context<Self>) {
     self.selection = None;
   }
 }
@@ -294,7 +306,7 @@ impl Element for InputContent {
   fn pre_render(
     &mut self,
     _: crate::Rect,
-    _: &mut Self::RequestLayoutState,
+    (): &mut Self::RequestLayoutState,
     _: &mut Window,
     _: &mut App,
   ) -> Self::PreRenderState {
@@ -302,8 +314,8 @@ impl Element for InputContent {
   fn render(
     &mut self,
     bounds: crate::Rect,
-    _: &mut Self::RequestLayoutState,
-    _: &mut Self::PreRenderState,
+    (): &mut Self::RequestLayoutState,
+    (): &mut Self::PreRenderState,
     _: &mut Window,
     _: &mut App,
   ) {
@@ -313,15 +325,15 @@ impl Element for InputContent {
       let y = bounds.y + i as u16;
       if y >= bounds.y + bounds.height {
         break;
-      };
+      }
 
       terminal.write_at(bounds.x, y, line);
     }
 
-    for cursor in self.cursors.iter() {
+    for cursor in &self.cursors {
       if !cursor.visible {
         continue;
-      };
+      }
 
       let x = bounds.x + cursor.pos as u16;
       let y = bounds.y;
@@ -345,7 +357,7 @@ impl Element for InputContent {
             );
           } else {
             terminal.write_ansi_at(x, y, "\x1b[7m \x1b[27m", " ");
-          };
+          }
         }
         CursorStyle::Underscore => {
           if let Some(ch) = self.text[cursor.pos..].chars().next() {
@@ -359,9 +371,9 @@ impl Element for InputContent {
             );
           } else {
             terminal.write_ansi_at(x, y, "\x1b[4m \x1b[24m", " ");
-          };
+          }
         }
-      };
+      }
     }
   }
 }
@@ -412,7 +424,7 @@ impl CursorBlinking {
     if step != self.step {
       self.visible = true;
       return;
-    };
+    }
 
     self.visible = !self.visible;
     cx.notify();
@@ -443,7 +455,7 @@ pub(crate) fn init(cx: &mut App) {
     Keybind::new(Right, [Keystroke::parse("right")], key_context),
     Keybind::new(Up, [Keystroke::parse("up")], key_context),
     Keybind::new(Down, [Keystroke::parse("down")], key_context),
-    Keybind::new(Enter, [Keystroke::parse("return")], key_context),
-    Keybind::new(Escape, [Keystroke::parse("esc")], key_context),
+    Keybind::new(Submit, [Keystroke::parse("return")], key_context),
+    Keybind::new(Cancel, [Keystroke::parse("esc")], key_context),
   ]);
 }

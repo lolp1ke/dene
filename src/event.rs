@@ -43,9 +43,7 @@ impl<Key, Callback> EventDispatcherSet<Key, Callback> {
 }
 impl<Key, Callback> Default for EventDispatcherSet<Key, Callback> {
   fn default() -> Self {
-    Self {
-      set: Default::default(),
-    }
+    Self { set: Rc::default() }
   }
 }
 impl<Key, Callback> Clone for EventDispatcherSet<Key, Callback> {

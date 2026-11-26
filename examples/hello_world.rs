@@ -9,14 +9,14 @@ use dene::{
   elements::{Input, InputEvent, InputState, div},
   entity::Entity,
   focus::{FocusHandle, Focusable},
-  window::Window,
+  window::{Window, WindowOptions},
 };
 
 fn main() {
   let app = Application::default();
 
   app.run(|cx| {
-    cx.open_window(Default::default(), |_window, cx| {
+    cx.open_window(WindowOptions::default(), |_window, cx| {
       cx.new_entity(HelloWorld::new)
     });
   });
@@ -41,10 +41,10 @@ impl HelloWorld {
       move |_, event: &InputEvent, cx| {
         if let InputEvent::Submit(text) = event {
           this.update(cx, |this, _| {
-            this.search = text.clone();
+            this.search.clone_from(text);
             tracing::info!("input submit event: {}", text);
           });
-        };
+        }
 
         true
       }

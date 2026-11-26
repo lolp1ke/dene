@@ -6,14 +6,14 @@ use dene::{
   elements::{
     Axis, ScrollAlignment, UniformList, UniformListScrollHandle, div,
   },
-  window::Window,
+  window::{Window, WindowOptions},
 };
 
 fn main() {
   let app = Application::new();
 
   app.run(|cx| {
-    cx.open_window(Default::default(), |_, cx| {
+    cx.open_window(WindowOptions::default(), |_, cx| {
       cx.new_entity(|_| {
         let vertical = UniformListScrollHandle::new();
         vertical.scroll_to_item(50000, ScrollAlignment::Start);
@@ -51,14 +51,16 @@ impl Render for Lists {
         div()
           .flex()
           .flex_col()
-          .child(format!("Item {index:06}"))
-          .child("  A measured two-line row")
+          .child(format!("item {index:06}"))
+          .child("  a measured two-line row")
       })
     })
     .border();
 
-    div().size_full().flex().flex_col()
-      .child("UniformList: wheel over either list to scroll. Ctrl-; then Ctrl-Q quits.")
+    div()
+      .size_full()
+      .flex()
+      .flex_col()
       .child(vertical)
       .child(horizontal)
   }

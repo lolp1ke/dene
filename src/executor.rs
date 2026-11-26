@@ -44,7 +44,7 @@ impl ForegroundExecutor {
     }
 
     let (runnable, task) = unsafe {
-      async_task::Builder::new().spawn_unchecked(move |_| F { future }, {
+      async_task::Builder::new().spawn_unchecked(move |()| F { future }, {
         let tx = self.tx.clone();
         move |runnable: Runnable| {
           _ = tx.send(Box::new(move || {
@@ -75,14 +75,15 @@ impl BackgroundExecutor {
     Fut: 'static + Future + Send,
     Fut::Output: 'static + Send,
   {
-    let (runnable, task) = async_task::Builder::new().spawn(move |_| future, {
-      let dispatcher = self.dispatcher.clone().unwrap().clone();
-      move |runnable: Runnable| {
-        dispatcher.spawn(async move {
-          runnable.run();
-        });
-      }
-    });
+    let (runnable, task) =
+      async_task::Builder::new().spawn(move |()| future, {
+        let dispatcher = self.dispatcher.clone().unwrap().clone();
+        move |runnable: Runnable| {
+          dispatcher.spawn(async move {
+            runnable.run();
+          });
+        }
+      });
     runnable.schedule();
     Task(TaskState::Spawned(task))
   }
@@ -95,7 +96,7 @@ impl<T> Task<T> {
     match self.0 {
       TaskState::Ready(..) => {}
       TaskState::Spawned(task) => task.detach(),
-    };
+    }
   }
 }
 impl<T> Future for Task<T> {

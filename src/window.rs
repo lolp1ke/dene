@@ -55,12 +55,12 @@ impl Window {
         cx.keybinds.clone(),
       )),
       layout_engine: LayoutEngine::new(),
-      mouse_position: Default::default(),
+      mouse_position: Pos::default(),
     }
   }
 
   pub(crate) fn render(&mut self, cx: &mut App) {
-    let Some(root) = self.root.as_ref().cloned() else {
+    let Some(root) = self.root.clone() else {
       return;
     };
     self.layout_engine.clear();
@@ -70,8 +70,8 @@ impl Window {
     let root_node_id = root_element.request_layout(self, cx);
 
     let available_space = taffy::Size {
-      width: AvailableSpace::Definite(self.bounds.width as f32),
-      height: AvailableSpace::Definite(self.bounds.height as f32),
+      width: AvailableSpace::Definite(f32::from(self.bounds.width)),
+      height: AvailableSpace::Definite(f32::from(self.bounds.height)),
     };
     self.layout_engine.compute(root_node_id, available_space);
 
@@ -102,11 +102,11 @@ impl Window {
     let mut mouse_listeners =
       std::mem::take(&mut self.current_frame.mouse_listeners);
 
-    for listener in mouse_listeners.iter_mut() {
+    for listener in &mut mouse_listeners {
       (listener)(event, DispatchPhase::Capture, self, cx);
       if !cx.propagate_event {
         break;
-      };
+      }
     }
 
     if cx.propagate_event {
@@ -114,9 +114,9 @@ impl Window {
         (listener)(event, DispatchPhase::Bubble, self, cx);
         if !cx.propagate_event {
           break;
-        };
+        }
       }
-    };
+    }
     self.current_frame.mouse_listeners.extend(mouse_listeners);
   }
   pub(crate) fn dispatch_keyboard_event(
@@ -126,7 +126,7 @@ impl Window {
   ) {
     if self.dirty {
       self.render(cx);
-    };
+    }
 
     let node_id = self.focus_in_current_frame(self.focus);
     let dispatch_path =
@@ -147,7 +147,7 @@ impl Window {
         DispatchKeystrokeResult::Match(action) => {
           if action.partial_eq(&NoAction as &dyn Action) {
             return;
-          };
+          }
           self.current_frame.pending_keystrokes.clear();
           self.dispatch_action_on_node(node_id, &*action, cx);
         }
@@ -160,19 +160,19 @@ impl Window {
         DispatchKeystrokeResult::Nope => {
           self.current_frame.pending_keystrokes.clear();
         }
-      };
+      }
 
       let mut input_handlers =
         std::mem::take(&mut self.current_frame.input_handlers);
-      for input_handler in input_handlers.iter_mut() {
+      for input_handler in &mut input_handlers {
         if !modifiers.intersects(Modifiers::CONTROL)
           && let Some(chars) = key_char.as_deref()
         {
           input_handler.insert_str(None, chars, self, cx);
-        };
+        }
       }
       self.current_frame.input_handlers.extend(input_handlers);
-    };
+    }
 
     self.dispatch_key_down_up_event(event, dispatch_path, cx);
   }
@@ -183,18 +183,18 @@ impl Window {
     dispatch_path: &[DispatchNodeId],
     cx: &mut App,
   ) {
-    for node_id in dispatch_path.iter() {
-      let node = self.current_frame.dispatch_tree.node(node_id);
+    for node_id in dispatch_path {
+      let node = self.current_frame.dispatch_tree.node(*node_id);
 
-      for listener in node.key_listeners.clone().into_iter() {
+      for listener in node.key_listeners.clone() {
         (listener)(event, DispatchPhase::Capture, self, cx);
       }
     }
 
     for node_id in dispatch_path.iter().rev() {
-      let node = self.current_frame.dispatch_tree.node(node_id);
+      let node = self.current_frame.dispatch_tree.node(*node_id);
 
-      for listener in node.key_listeners.clone().into_iter() {
+      for listener in node.key_listeners.clone() {
         (listener)(event, DispatchPhase::Bubble, self, cx);
       }
     }
@@ -212,11 +212,11 @@ impl Window {
       .global_action_listeners
       .remove(&action.as_any().type_id())
     {
-      for listener in global_action_listeners.iter() {
+      for listener in &global_action_listeners {
         (listener)(action, DispatchPhase::Capture, cx);
         if !cx.propagate_event {
           break;
-        };
+        }
       }
 
       cx.global_action_listeners
@@ -225,37 +225,35 @@ impl Window {
 
     if !cx.propagate_event {
       return;
-    };
+    }
 
-    for node_id in dispatch_path.iter() {
-      let node = self.current_frame.dispatch_tree.node(node_id);
+    for node_id in &dispatch_path {
+      let node = self.current_frame.dispatch_tree.node(*node_id);
 
-      for (action_ty_id, listener) in node.action_listeners.clone().into_iter()
-      {
+      for (action_ty_id, listener) in node.action_listeners.clone() {
         let any_action = action.as_any();
         if action_ty_id == any_action.type_id() {
           (listener)(any_action, DispatchPhase::Capture, self, cx);
 
           if !cx.propagate_event {
             return;
-          };
-        };
+          }
+        }
       }
     }
 
     for node_id in dispatch_path.iter().rev() {
-      let node = self.current_frame.dispatch_tree.node(node_id);
+      let node = self.current_frame.dispatch_tree.node(*node_id);
 
-      for (action_ty_id, listener) in node.action_listeners.clone().into_iter()
-      {
+      for (action_ty_id, listener) in node.action_listeners.clone() {
         let any_action = action.as_any();
         if action_ty_id == any_action.type_id() {
           cx.propagate_event = false;
           (listener)(any_action, DispatchPhase::Bubble, self, cx);
           if !cx.propagate_event {
             return;
-          };
-        };
+          }
+        }
       }
     }
 
@@ -268,7 +266,7 @@ impl Window {
         (listener)(action, DispatchPhase::Bubble, cx);
         if !cx.propagate_event {
           break;
-        };
+        }
       }
 
       cx.global_action_listeners
@@ -285,7 +283,7 @@ impl Window {
       move |event, phase, window, cx| {
         if let Some(event) = event.downcast_ref::<Event>() {
           (listener)(event, phase, window, cx);
-        };
+        }
       },
     ));
   }
@@ -298,7 +296,7 @@ impl Window {
       move |event, phase, window, cx| {
         if let Some(event) = event.downcast_ref::<Event>() {
           (listener)(event, phase, window, cx);
-        };
+        }
       },
     ));
   }
@@ -330,7 +328,7 @@ impl Window {
 
     if self.focus == Some(focus_handle.id) {
       self.next_frame.focus = Some(focus_handle.id);
-    };
+    }
     self.next_frame.dispatch_tree.set_focus_id(focus_handle.id);
   }
   pub(crate) fn set_default_focus(&mut self, focus_handle: &FocusHandle) {
@@ -341,7 +339,7 @@ impl Window {
   fn focus(&mut self, focus_handle: &FocusHandle) {
     if self.focus == Some(focus_handle.id) {
       return;
-    };
+    }
     self.focus = Some(focus_handle.id);
     self.dirty = true;
   }
@@ -350,7 +348,7 @@ impl Window {
       self.current_frame.tab_stop_map.next(self.focus.as_ref())
     {
       self.focus(&handle);
-    };
+    }
   }
   pub(crate) fn focus_prev(&mut self) {
     if let Some(handle) =
@@ -369,7 +367,7 @@ impl Window {
     if focus_handle.is_focused(self) {
       self.next_frame.input_handlers.clear();
       self.next_frame.input_handlers.push(Box::new(input_handler));
-    };
+    }
   }
 
   pub(crate) fn with_tab_group<F, R>(
@@ -390,6 +388,7 @@ impl Window {
     }
   }
 
+  #[allow(clippy::unused_self)]
   pub(crate) fn listener<E, F, AnyEvent>(
     &self,
     view: &Entity<E>,
@@ -423,10 +422,10 @@ impl Frame {
     Self {
       focus: None,
       dispatch_tree,
-      pending_keystrokes: Default::default(),
-      mouse_listeners: Default::default(),
-      input_handlers: Default::default(),
-      tab_stop_map: Default::default(),
+      pending_keystrokes: SmallVec::default(),
+      mouse_listeners: Vec::default(),
+      input_handlers: Vec::default(),
+      tab_stop_map: FocusTabStopMap::default(),
     }
   }
 
@@ -487,6 +486,7 @@ impl AnyWindowHandle {
 }
 
 #[derive(Debug)]
+#[derive(Clone, Copy)]
 pub struct WindowOptions {
   pub bounds: Rect,
 }

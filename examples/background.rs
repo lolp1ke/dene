@@ -9,12 +9,14 @@ use dene::{
   elements::{Input, InputState, UniformList, UniformListScrollHandle, div},
   entity::Entity,
   focus::FocusHandle,
-  window::Window,
+  window::{Window, WindowOptions},
 };
 
 fn main() {
   Application::new().run(|cx| {
-    cx.open_window(Default::default(), |_, cx| cx.new_entity(Backgrounds::new));
+    cx.open_window(WindowOptions::default(), |_, cx| {
+      cx.new_entity(Backgrounds::new)
+    });
   });
 }
 

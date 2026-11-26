@@ -11,10 +11,10 @@ pub struct ScrollHandle(pub(crate) Rc<RefCell<ScrollHandleInner>>);
 impl ScrollHandle {
   pub(crate) fn new(overflow: [taffy::Overflow; 2]) -> Self {
     Self(Rc::new(RefCell::new(ScrollHandleInner {
-      bounds: Default::default(),
-      offset: Default::default(),
+      bounds: Rect::default(),
+      offset: Rc::default(),
       overflow,
-      content_size: Default::default(),
+      content_size: Size::default(),
     })))
   }
 }

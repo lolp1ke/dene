@@ -24,8 +24,9 @@ impl From<Color> for crossterm::style::Color {
 }
 
 #[inline]
+#[must_use]
 pub fn rgb(hex: u32) -> Rgb {
-  let [_, r, g, b] = hex.to_be_bytes().map(|b| (b as f32) / 255.0);
+  let [_, r, g, b] = hex.to_be_bytes().map(|b| f32::from(b) / 255.0);
   Rgb { r, g, b }
 }
 

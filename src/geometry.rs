@@ -10,19 +10,19 @@ pub struct Rect {
   pub(crate) height: u16,
 }
 impl Rect {
-  pub(crate) fn as_size(&self) -> Size {
+  pub(crate) fn as_size(self) -> Size {
     Size {
       width: self.width,
       height: self.height,
     }
   }
-  pub(crate) fn as_pos(&self) -> Pos {
+  pub(crate) fn as_pos(self) -> Pos {
     Pos {
       x: self.x,
       y: self.y,
     }
   }
-  pub(crate) fn as_bottom_right_pos(&self) -> Pos {
+  pub(crate) fn as_bottom_right_pos(self) -> Pos {
     Pos {
       x: self.x + self.width,
       y: self.y + self.height,

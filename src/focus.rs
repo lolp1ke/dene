@@ -48,7 +48,7 @@ impl FocusHandle {
   pub(crate) fn tab_index(&mut self, tab_index: isize) {
     if let Some(focus_ref) = self.focus_map.write().get_mut(self.id) {
       focus_ref.tab_index = tab_index;
-    };
+    }
     self.tab_index = tab_index;
   }
   pub(crate) fn tab_stop(&mut self, tab_stop: bool) {
@@ -152,14 +152,14 @@ impl FocusTabStopMap {
       let first = self.order.first()?;
       if first.tab_stop {
         return self.focus_handle_for_order(first);
-      } else {
-        return self
-          ._next(first)
-          .and_then(|node| self.focus_handle_for_order(node));
-      };
+      }
+
+      return self
+        ._next(first)
+        .and_then(|node| self.focus_handle_for_order(node));
     };
 
-    let Some(node) = self.tab_node_for_focus_id(focused_id) else {
+    let Some(node) = self.tab_node_for_focus_id(*focused_id) else {
       return self.next(None);
     };
 
@@ -177,14 +177,14 @@ impl FocusTabStopMap {
       let last = self.order.last()?;
       if last.tab_stop {
         return self.focus_handle_for_order(last);
-      } else {
-        return self
-          ._prev(last)
-          .and_then(|node| self.focus_handle_for_order(node));
-      };
+      }
+
+      return self
+        ._prev(last)
+        .and_then(|node| self.focus_handle_for_order(node));
     };
 
-    let Some(node) = self.tab_node_for_focus_id(focused_id) else {
+    let Some(node) = self.tab_node_for_focus_id(*focused_id) else {
       return self.prev(None);
     };
 
@@ -204,11 +204,8 @@ impl FocusTabStopMap {
     // self.order.range(..node).rev().next()
   }
 
-  fn tab_node_for_focus_id(
-    &self,
-    focused_id: &FocusId,
-  ) -> Option<&TabStopNode> {
-    self.by_id.get(focused_id)
+  fn tab_node_for_focus_id(&self, focused_id: FocusId) -> Option<&TabStopNode> {
+    self.by_id.get(&focused_id)
   }
   fn focus_handle_for_order(&self, order: &TabStopNode) -> Option<FocusHandle> {
     self.insertion_history[order.node_idx]

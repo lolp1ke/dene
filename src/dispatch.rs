@@ -49,10 +49,10 @@ impl DispatchTree {
     keybinds: Rc<RefCell<Keybinds>>,
   ) -> Self {
     Self {
-      node_stack: Default::default(),
-      nodes: Default::default(),
-      focusable_node_ids: Default::default(),
-      context_stack: Default::default(),
+      node_stack: Vec::default(),
+      nodes: Vec::default(),
+      focusable_node_ids: FxHashMap::default(),
+      context_stack: Vec::default(),
       actions,
       keybinds,
     }
@@ -120,11 +120,11 @@ impl DispatchTree {
     let node = &self.nodes[self.active_node_id().unwrap()];
     if node.context.is_some() {
       self.context_stack.pop();
-    };
+    }
     self.node_stack.pop();
   }
-  pub(crate) fn node(&self, node_id: &DispatchNodeId) -> &DispatchNode {
-    &self.nodes[*node_id]
+  pub(crate) fn node(&self, node_id: DispatchNodeId) -> &DispatchNode {
+    &self.nodes[node_id]
   }
 
   pub(crate) fn set_active_node(&mut self, node_id: DispatchNodeId) {
@@ -140,10 +140,10 @@ impl DispatchTree {
       let active_node = &self.nodes[node_id];
       if let Some(context) = active_node.context.clone() {
         self.context_stack.push(context);
-      };
+      }
     } else {
       todo!();
-    };
+    }
   }
   pub(crate) fn set_focus_id(&mut self, focus_id: FocusId) {
     let node_id = self.node_stack.last().copied().unwrap();
@@ -177,10 +177,10 @@ impl DispatchTree {
     focused_node_id: DispatchNodeId,
   ) -> SmallVec<[DispatchContextEntry; 4]> {
     let mut contexts = SmallVec::new();
-    for node_id in self.dispatch_path(focused_node_id).iter() {
+    for node_id in self.dispatch_path(focused_node_id) {
       if let Some(context) = self.node(node_id).context.as_ref() {
         contexts.extend(context.0.iter().cloned());
-      };
+      }
     }
     contexts
   }
@@ -188,17 +188,17 @@ impl DispatchTree {
     let node_id = self.active_node_id().unwrap();
     let node_context = self.nodes[node_id].context.get_or_insert_default();
 
-    for src in contexts.iter() {
+    for src in contexts {
       let Ok(entries) = DispatchContext::try_from(src.as_ref()) else {
         tracing::warn!("`DispatchContext::try_from` failed; {}", src);
         continue;
       };
 
-      for entry in entries.0.into_iter() {
+      for entry in entries.0 {
         match entry.value {
           Some(value) => node_context.set(entry.key, value),
           None => node_context.add(entry.key),
-        };
+        }
       }
     }
     self.context_stack.push(node_context.clone());
@@ -247,7 +247,7 @@ impl DispatchContext {
   fn parse_expr(mut src: &str, this: &mut Self) -> anyhow::Result<()> {
     if src.is_empty() {
       return Ok(());
-    };
+    }
 
     let key = src
       .chars()
@@ -264,7 +264,7 @@ impl DispatchContext {
       this.set(key, value);
     } else {
       this.add(key);
-    };
+    }
 
     Self::parse_expr(src, this)
   }
@@ -284,7 +284,7 @@ impl DispatchContext {
         key,
         value: Some(value.into()),
       });
-    };
+    }
   }
   fn add<I>(&mut self, ident: I)
   where

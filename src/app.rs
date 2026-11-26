@@ -3,7 +3,7 @@
 use std::{
   any::{Any, TypeId},
   cell::RefCell,
-  collections::VecDeque,
+  collections::{HashMap, VecDeque},
   fmt::Write as _,
   rc::{self, Rc},
   sync::{
@@ -41,6 +41,7 @@ pub struct Application {
   frx: Option<UnboundedReceiver<ForegroundTask>>,
 }
 impl Application {
+  #[must_use]
   pub fn new() -> Self {
     let (app, frx) = App::create();
     Self {
@@ -62,34 +63,33 @@ impl Application {
   {
     let rt = tokio::runtime::Handle::try_current();
     let cx = self.app.clone();
-    let frx = self.frx.take().unwrap();
+    let Some(frx) = self.frx.take() else {
+      unreachable!();
+    };
 
-    match rt {
-      Ok(rt) => {
-        if matches!(
-          rt.runtime_flavor(),
-          tokio::runtime::RuntimeFlavor::CurrentThread
-        ) {
-          panic!("required runtime flavor is `rt-multi-thread`");
-        };
+    if let Ok(rt) = rt {
+      if matches!(
+        rt.runtime_flavor(),
+        tokio::runtime::RuntimeFlavor::CurrentThread
+      ) {
+        panic!("required runtime flavor is `rt-multi-thread`");
+      }
 
-        let handle = Arc::new(rt);
-        self
-          .app
-          .borrow_mut()
-          .background_executor
-          .pass_handle(handle.clone());
-        tokio::task::block_in_place(move || {
-          handle.block_on(async move { App::run(cx, frx, f).await })
-        })
-      }
-      Err(..) => {
-        let rt = tokio::runtime::Builder::new_multi_thread()
-          .enable_all()
-          .build()
-          .unwrap();
-        rt.block_on(async move { App::run(cx, frx, f).await })
-      }
+      let handle = Arc::new(rt);
+      self
+        .app
+        .borrow_mut()
+        .background_executor
+        .pass_handle(handle.clone());
+      tokio::task::block_in_place(move || {
+        handle.block_on(async move { App::run(cx, frx, f).await })
+      })
+    } else {
+      let rt = tokio::runtime::Builder::new_multi_thread()
+        .enable_all()
+        .build()
+        .unwrap();
+      rt.block_on(async move { App::run(cx, frx, f).await })
     }
   }
 }
@@ -135,7 +135,7 @@ pub struct App {
 }
 impl App {
   fn create() -> (Rc<RefCell<Self>>, UnboundedReceiver<ForegroundTask>) {
-    // crate::init_tracing();
+    crate::init_tracing();
     TERMINAL
       .set(RwLock::new(Terminal::new()))
       .expect("failed to init terminal");
@@ -178,19 +178,19 @@ impl App {
           quitting: AtomicBool::new(false),
           foreground_executor: ForegroundExecutor::new(tx),
           background_executor: BackgroundExecutor::new(),
-          actions: Default::default(),
+          actions: Rc::default(),
           keybinds: Rc::new(RefCell::new(keybinds)),
-          globals_by_type: Default::default(),
-          focus_map: Default::default(),
+          globals_by_type: HashMap::default(),
+          focus_map: FocusMap::default(),
           active_window: None,
-          windows: Default::default(),
-          global_action_listeners: Default::default(),
-          event_dispatchers: Default::default(),
+          windows: SlotMap::default(),
+          global_action_listeners: HashMap::default(),
+          event_dispatchers: EventDispatcherSet::default(),
           propagate_event: true,
           prevent_default: false,
-          entities: Default::default(),
+          entities: EntityMap::default(),
           pending_updates: 0,
-          pending_effects: Default::default(),
+          pending_effects: VecDeque::default(),
           flushing_effects: false,
         })
       }),
@@ -232,10 +232,10 @@ impl App {
       window.root = Some(f(&mut window, cx).into());
       window.render(cx);
 
-      cx.windows
-        .get_mut(window_id)
-        .unwrap()
-        .replace(Box::new(window));
+      let Some(window_slot) = cx.windows.get_mut(window_id) else {
+        unreachable!();
+      };
+      window_slot.replace(Box::new(window));
       cx.active_window = Some(*handle);
       handle
     })
@@ -271,9 +271,9 @@ impl App {
             _ = active_window.update(&mut *this.borrow_mut(), |_, window, cx| {
               if window.dirty {
                 window.render(cx);
-              };
+              }
             });
-          };
+          }
         }
       }
     }
@@ -312,8 +312,8 @@ impl App {
       .or_default()
       .push(Rc::new(move |action, phase, cx| {
         if let Some(action) = action.downcast_ref() {
-          (listener)(action, phase, cx)
-        };
+          (listener)(action, phase, cx);
+        }
       }));
   }
 
@@ -386,9 +386,9 @@ impl App {
 
         if window.dirty {
           window.render(cx);
-        };
+        }
       });
-    };
+    }
   }
   fn handle_key_event(&mut self, key_event: term_event::KeyEvent) {
     use term_event::KeyModifiers;
@@ -400,37 +400,40 @@ impl App {
       term_event::KeyCode::Char('\0') | term_event::KeyCode::Null
     ) {
       return;
-    };
+    }
 
     if key_event.modifiers.contains(KeyModifiers::SHIFT) {
       keystroke.push_str("shift-");
-    };
+    }
     if key_event.modifiers.contains(KeyModifiers::CONTROL) {
       keystroke.push_str("ctrl-");
-    };
+    }
     if key_event.modifiers.contains(KeyModifiers::ALT) {
       keystroke.push_str("alt-");
-    };
+    }
     if key_event.modifiers.intersects(
       KeyModifiers::SUPER | KeyModifiers::HYPER | KeyModifiers::META,
     ) {
       keystroke.push_str("meta-");
-    };
+    }
 
     match key_event.code {
-      term_event::KeyCode::Backspace => keystroke.push_str("delete"),
+      term_event::KeyCode::Backspace | term_event::KeyCode::Delete => {
+        keystroke.push_str("delete");
+      }
       term_event::KeyCode::Enter => keystroke.push_str("return"),
       term_event::KeyCode::Left => keystroke.push_str("left"),
       term_event::KeyCode::Right => keystroke.push_str("right"),
       term_event::KeyCode::Up => keystroke.push_str("up"),
       term_event::KeyCode::Down => keystroke.push_str("down"),
-      term_event::KeyCode::Tab => keystroke.push_str("tab"),
-      term_event::KeyCode::BackTab => keystroke.push_str("tab"),
-      term_event::KeyCode::Delete => keystroke.push_str("delete"),
+      term_event::KeyCode::Tab | term_event::KeyCode::BackTab => {
+        keystroke.push_str("tab");
+      }
+
       term_event::KeyCode::F(f) => {
         if let Err(err) = write!(keystroke, "f{}", f) {
           tracing::error!("keystroke `f` key write failed: {:?}", err);
-        };
+        }
       }
       term_event::KeyCode::Char(ch) => {
         keystroke.push(ch);
@@ -441,11 +444,11 @@ impl App {
       _ => {
         if let Some(ch) = key_event.code.as_char() {
           keystroke.push(ch);
-        };
+        }
 
         if !key_event.modifiers.is_empty() {
           return;
-        };
+        }
       }
     }
 
@@ -472,10 +475,10 @@ impl App {
 
           if window.dirty {
             window.render(cx);
-          };
+          }
         });
-      };
-    };
+      }
+    }
   }
   fn handle_event(&mut self, event: term_event::Event) {
     match event {
@@ -493,11 +496,11 @@ impl App {
             window.bounds.height = height;
             window.render(cx);
           });
-        };
+        }
       }
 
       _ => {}
-    };
+    }
   }
 
   pub fn set_global<G>(&mut self, global: G)
@@ -535,7 +538,7 @@ impl App {
     self
       .update(move |cx| {
         let mut window = cx.windows.get_mut(window_id)?.take()?;
-        let view = window.root.as_ref().cloned()?;
+        let view = window.root.clone()?;
 
         let result = f(view, &mut window, cx);
         window.dirty = true;
@@ -551,7 +554,7 @@ impl App {
       _ = active_window.update(self, |_, window, _| {
         window.dirty = true;
       });
-    };
+    }
     self.pending_effects.push_back(Effect::Notify { entity_id });
   }
   pub fn apply_emit(
@@ -586,7 +589,7 @@ impl App {
       self.flushing_effects = true;
       self.flush_effects();
       self.flushing_effects = false;
-    };
+    }
     self.pending_updates -= 1;
   }
   fn flush_effects(&mut self) {
@@ -679,9 +682,11 @@ impl<'a, E> Context<'a, E> {
     Self { app, entity }
   }
 
+  #[must_use]
   pub fn entity(&self) -> Entity<E> {
     self.entity.clone()
   }
+  #[must_use]
   pub const fn entity_id(&self) -> EntityId {
     self.entity.id()
   }

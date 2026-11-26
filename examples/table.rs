@@ -6,14 +6,14 @@ use dene::{
   elements::{TableAdapter, TableColumn, TableState, div},
   entity::Entity,
   style::TextAlign,
-  window::Window,
+  window::{Window, WindowOptions},
 };
 
 fn main() {
   let app = Application::new();
 
   app.run(move |cx| {
-    cx.open_window(Default::default(), move |_, cx| {
+    cx.open_window(WindowOptions::default(), move |_, cx| {
       cx.new_entity(TopTitles::new)
     })
   });
@@ -39,7 +39,7 @@ impl Render for TopTitles {
       .flex()
       .flex_col()
       .gap_y(3.)
-      .child("Top titles")
+      .child("top titles")
       .child(self.table.clone())
   }
 }

@@ -2,6 +2,7 @@
 
 use std::{
   fs::OpenOptions,
+  path::Path,
   process::{Command, Stdio},
   sync::Mutex,
 };
@@ -9,22 +10,23 @@ use std::{
 use tracing::level_filters::LevelFilter;
 use tracing_subscriber::{EnvFilter, Layer};
 
-const LOG_FIFO: &str = "/tmp/dene_tui_log_pipe";
+const LOG_FIFO: &str = "/tmp/dene/log";
 
 pub(crate) fn init_tracing() {
   use tracing_subscriber::layer::SubscriberExt as _;
   use tracing_subscriber::util::SubscriberInitExt as _;
 
-  if let Err(err) = Command::new("mkfifo")
-    .arg(LOG_FIFO)
-    .stdin(Stdio::null())
-    .stderr(Stdio::null())
-    .stdout(Stdio::null())
-    .spawn()
+  if !Path::new(LOG_FIFO).exists()
+    && let Err(err) = Command::new("mkfifo")
+      .arg(LOG_FIFO)
+      .stdin(Stdio::null())
+      .stderr(Stdio::null())
+      .stdout(Stdio::null())
+      .spawn()
   {
     #[cfg(debug_assertions)]
     eprintln!("tracing pty pipe creation failed: {}", err);
-  };
+  }
   let Ok(pty_pipe) = OpenOptions::new().read(true).write(true).open(LOG_FIFO)
   else {
     return;

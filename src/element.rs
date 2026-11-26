@@ -77,7 +77,7 @@ where
     &mut self,
     _: Rect,
     request_layout: &mut Self::RequestLayoutState,
-    _: &mut Self::PreRenderState,
+    (): &mut Self::PreRenderState,
     window: &mut Window,
     cx: &mut App,
   ) {
@@ -141,6 +141,7 @@ pub trait ParentElement {
     Iter: IntoIterator,
     Iter::Item: IntoElement;
 
+  #[must_use]
   fn child<E>(mut self, child: E) -> Self
   where
     E: IntoElement,
@@ -149,6 +150,7 @@ pub trait ParentElement {
     self.extend(std::iter::once(child.into_any_element()));
     self
   }
+  #[must_use]
   fn children<Iter>(mut self, children: Iter) -> Self
   where
     Iter: IntoIterator,
@@ -192,7 +194,7 @@ impl Element for AnyElement {
   fn pre_render(
     &mut self,
     _: Rect,
-    _: &mut Self::RequestLayoutState,
+    (): &mut Self::RequestLayoutState,
     window: &mut Window,
     cx: &mut App,
   ) -> Self::PreRenderState {
@@ -201,8 +203,8 @@ impl Element for AnyElement {
   fn render(
     &mut self,
     _: Rect,
-    _: &mut Self::RequestLayoutState,
-    _: &mut Self::PreRenderState,
+    (): &mut Self::RequestLayoutState,
+    (): &mut Self::PreRenderState,
     window: &mut Window,
     cx: &mut App,
   ) {
@@ -423,18 +425,18 @@ impl Interactivity {
     let mouse_button_up_listeners =
       mem::take(&mut self.mouse_button_up_listeners);
 
-    for listener in scroll_wheel_listeners.into_iter() {
+    for listener in scroll_wheel_listeners {
       let hitbox = hitbox.clone();
       window.on_mouse_event(
         move |event: &ScrollWheelEvent, phase, window, cx| {
           if hitbox.contains(event.pos) {
             (listener)(event, phase, window, cx);
-          };
+          }
         },
       );
     }
 
-    for listener in mouse_button_down_listeners.into_iter() {
+    for listener in mouse_button_down_listeners {
       let hitbox = hitbox.clone();
       window.on_mouse_event(
         move |event: &MouseButtonDownEvent, phase, window, cx| {
@@ -442,7 +444,7 @@ impl Interactivity {
         },
       );
     }
-    for listener in mouse_button_up_listeners.into_iter() {
+    for listener in mouse_button_up_listeners {
       let hitbox = hitbox.clone();
       window.on_mouse_event(
         move |event: &MouseButtonUpEvent, phase, window, cx| {
@@ -456,13 +458,13 @@ impl Interactivity {
     let key_up_listeners = mem::take(&mut self.key_up_listener);
     let action_listeners = mem::take(&mut self.action_listeners);
 
-    for listener in key_down_listeners.into_iter() {
+    for listener in key_down_listeners {
       window.on_key_event(listener);
     }
-    for listener in key_up_listeners.into_iter() {
+    for listener in key_up_listeners {
       window.on_key_event(listener);
     }
-    for (action_ty_id, listener) in action_listeners.into_iter() {
+    for (action_ty_id, listener) in action_listeners {
       window.on_action(action_ty_id, listener);
     }
 
@@ -484,7 +486,7 @@ impl Interactivity {
       move |event, phase, window, cx| {
         if matches!(phase, DispatchPhase::Bubble) {
           (listener)(event, window, cx);
-        };
+        }
       },
     ));
   }
@@ -500,7 +502,7 @@ impl Interactivity {
           && hitbox.is_hovered(window)
         {
           (listener)(event, window, cx);
-        };
+        }
       },
     ));
   }
@@ -518,7 +520,7 @@ impl Interactivity {
           && hitbox.is_hovered(window)
         {
           (listener)(event, window, cx);
-        };
+        }
       },
     ));
   }
@@ -533,7 +535,7 @@ impl Interactivity {
           && hitbox.is_hovered(window)
         {
           (listener)(event, window, cx);
-        };
+        }
       },
     ));
   }
@@ -548,7 +550,7 @@ impl Interactivity {
           && hitbox.is_hovered(window)
         {
           (listener)(event, window, cx);
-        };
+        }
       },
     ));
   }
@@ -562,7 +564,7 @@ impl Interactivity {
       .push(Box::new(move |event, phase, window, cx| {
         if matches!(phase, DispatchPhase::Bubble) {
           (listener)(event, window, cx);
-        };
+        }
       }));
   }
   fn capture_key_down<F>(&mut self, listener: F)
@@ -574,7 +576,7 @@ impl Interactivity {
       .push(Box::new(move |event, phase, window, cx| {
         if matches!(phase, DispatchPhase::Capture) {
           (listener)(event, window, cx);
-        };
+        }
       }));
   }
   fn on_key_up<F>(&mut self, listener: F)
@@ -586,7 +588,7 @@ impl Interactivity {
       .push(Box::new(move |event, phase, window, cx| {
         if matches!(phase, DispatchPhase::Bubble) {
           (listener)(event, window, cx);
-        };
+        }
       }));
   }
   fn capture_key_up<F>(&mut self, listener: F)
@@ -598,7 +600,7 @@ impl Interactivity {
       .push(Box::new(move |event, phase, window, cx| {
         if matches!(phase, DispatchPhase::Capture) {
           (listener)(event, window, cx);
-        };
+        }
       }));
   }
   fn on_action<F, A>(&mut self, listener: F)
@@ -613,7 +615,7 @@ impl Interactivity {
           && let Some(action) = action.downcast_ref::<A>()
         {
           (listener)(action, window, cx);
-        };
+        }
       }),
     ));
   }
@@ -621,6 +623,7 @@ impl Interactivity {
 pub trait InteractiveElement: Sized {
   fn interactivity(&mut self) -> &mut Interactivity;
 
+  #[must_use]
   fn key_context<C>(mut self, context: C) -> Self
   where
     C: Into<Arc<str>>,
@@ -628,26 +631,31 @@ pub trait InteractiveElement: Sized {
     self.interactivity().key_contexts.push(context.into());
     self
   }
+  #[must_use]
   fn track_focus(mut self, focus_handle: &FocusHandle) -> Self {
     self.interactivity().tracking_focus_handle = Some(focus_handle.clone());
     self.interactivity().focusable = true;
     self
   }
+  #[must_use]
   fn tab_index(mut self, tab_index: isize) -> Self {
     self.interactivity().focusable = true;
     self.interactivity().tab_index = Some(tab_index);
     self.interactivity().tab_stop = true;
     self
   }
+  #[must_use]
   fn tab_stop(mut self, tab_stop: bool) -> Self {
     self.interactivity().tab_stop = tab_stop;
     self
   }
+  #[must_use]
   fn track_scroll(mut self, scroll_handle: &ScrollHandle) -> Self {
     self.interactivity().tracking_scroll_handle = Some(scroll_handle.clone());
     self
   }
 
+  #[must_use]
   fn on_scroll_wheel<F>(mut self, listener: F) -> Self
   where
     F: 'static + Fn(&ScrollWheelEvent, &mut Window, &mut App),
@@ -656,6 +664,7 @@ pub trait InteractiveElement: Sized {
     self
   }
 
+  #[must_use]
   fn on_mouse_button_down<F>(mut self, button: MouseButton, listener: F) -> Self
   where
     F: 'static + Fn(&MouseButtonDownEvent, &mut Window, &mut App),
@@ -663,6 +672,7 @@ pub trait InteractiveElement: Sized {
     self.interactivity().on_mouse_button_down(button, listener);
     self
   }
+  #[must_use]
   fn capture_on_mouse_button_down<F>(
     mut self,
     button: MouseButton,
@@ -676,6 +686,7 @@ pub trait InteractiveElement: Sized {
       .capture_on_mouse_button_down(button, listener);
     self
   }
+  #[must_use]
   fn on_mouse_button_up<F>(mut self, button: MouseButton, listener: F) -> Self
   where
     F: 'static + Fn(&MouseButtonUpEvent, &mut Window, &mut App),
@@ -683,6 +694,7 @@ pub trait InteractiveElement: Sized {
     self.interactivity().on_mouse_button_up(button, listener);
     self
   }
+  #[must_use]
   fn capture_on_mouse_button_up<F>(
     mut self,
     button: MouseButton,
@@ -697,6 +709,7 @@ pub trait InteractiveElement: Sized {
     self
   }
 
+  #[must_use]
   fn on_key_down<F>(mut self, listener: F) -> Self
   where
     F: 'static + Fn(&KeyDownEvent, &mut Window, &mut App),
@@ -704,6 +717,7 @@ pub trait InteractiveElement: Sized {
     self.interactivity().on_key_down(listener);
     self
   }
+  #[must_use]
   fn capture_key_down<F>(mut self, listener: F) -> Self
   where
     F: 'static + Fn(&KeyDownEvent, &mut Window, &mut App),
@@ -711,6 +725,7 @@ pub trait InteractiveElement: Sized {
     self.interactivity().capture_key_down(listener);
     self
   }
+  #[must_use]
   fn on_key_up<F>(mut self, listener: F) -> Self
   where
     F: 'static + Fn(&KeyUpEvent, &mut Window, &mut App),
@@ -718,6 +733,7 @@ pub trait InteractiveElement: Sized {
     self.interactivity().on_key_up(listener);
     self
   }
+  #[must_use]
   fn capture_key_up<F>(mut self, listener: F) -> Self
   where
     F: 'static + Fn(&KeyUpEvent, &mut Window, &mut App),
@@ -726,6 +742,7 @@ pub trait InteractiveElement: Sized {
     self
   }
 
+  #[must_use]
   fn on_action<F, A>(mut self, listener: F) -> Self
   where
     A: Action,
@@ -735,6 +752,7 @@ pub trait InteractiveElement: Sized {
     self
   }
 
+  #[must_use]
   fn focused<F>(mut self, refine: F) -> Self
   where
     F: FnOnce(StyleRefinement) -> StyleRefinement,
@@ -749,32 +767,39 @@ pub trait InteractiveElement: Sized {
 pub trait StyleableElement: Sized {
   fn style(&mut self) -> &mut StyleRefinement;
 
+  #[must_use]
   fn block(mut self) -> Self {
     self.style().display = Some(taffy::Display::Block);
     self
   }
+  #[must_use]
   fn flex(mut self) -> Self {
     self.style().display = Some(taffy::Display::Flex);
     self
   }
+  #[must_use]
   fn grid(mut self) -> Self {
     self.style().display = Some(taffy::Display::Grid);
     self
   }
+  #[must_use]
   fn none(mut self) -> Self {
     self.style().display = Some(taffy::Display::None);
     self
   }
 
+  #[must_use]
   fn box_border(mut self) -> Self {
     self.style().box_sizing = Some(taffy::BoxSizing::BorderBox);
     self
   }
+  #[must_use]
   fn box_content(mut self) -> Self {
     self.style().box_sizing = Some(taffy::BoxSizing::ContentBox);
     self
   }
 
+  #[must_use]
   fn overflow_visible(mut self) -> Self {
     self.style().overflow = taffy::Point {
       x: taffy::Overflow::Visible,
@@ -783,6 +808,7 @@ pub trait StyleableElement: Sized {
     .into();
     self
   }
+  #[must_use]
   fn overflow_clip(mut self) -> Self {
     self.style().overflow = taffy::Point {
       x: taffy::Overflow::Clip,
@@ -791,6 +817,7 @@ pub trait StyleableElement: Sized {
     .into();
     self
   }
+  #[must_use]
   fn overflow_hidden(mut self) -> Self {
     self.style().overflow = taffy::Point {
       x: taffy::Overflow::Hidden,
@@ -799,6 +826,7 @@ pub trait StyleableElement: Sized {
     .into();
     self
   }
+  #[must_use]
   fn overflow_scroll(mut self) -> Self {
     self.style().overflow = taffy::Point {
       x: taffy::Overflow::Scroll,
@@ -807,443 +835,548 @@ pub trait StyleableElement: Sized {
     .into();
     self
   }
+  #[must_use]
   fn overflow_x_visible(mut self) -> Self {
     self.style().overflow.x = Some(taffy::Overflow::Visible);
     self
   }
+  #[must_use]
   fn overflow_x_clip(mut self) -> Self {
     self.style().overflow.x = Some(taffy::Overflow::Clip);
     self
   }
+  #[must_use]
   fn overflow_x_hidden(mut self) -> Self {
     self.style().overflow.x = Some(taffy::Overflow::Hidden);
     self
   }
+  #[must_use]
   fn overflow_x_scroll(mut self) -> Self {
     self.style().overflow.x = Some(taffy::Overflow::Scroll);
     self
   }
+  #[must_use]
   fn overflow_y_visible(mut self) -> Self {
     self.style().overflow.y = Some(taffy::Overflow::Visible);
     self
   }
+  #[must_use]
   fn overflow_y_clip(mut self) -> Self {
     self.style().overflow.y = Some(taffy::Overflow::Clip);
     self
   }
+  #[must_use]
   fn overflow_y_hidden(mut self) -> Self {
     self.style().overflow.y = Some(taffy::Overflow::Hidden);
     self
   }
+  #[must_use]
   fn overflow_y_scroll(mut self) -> Self {
     self.style().overflow.y = Some(taffy::Overflow::Scroll);
     self
   }
 
+  #[must_use]
   fn relative(mut self) -> Self {
     self.style().position = Some(taffy::Position::Relative);
     self
   }
+  #[must_use]
   fn absolute(mut self) -> Self {
     self.style().position = Some(taffy::Position::Absolute);
     self
   }
 
+  #[must_use]
   fn w_auto(mut self) -> Self {
     self.style().size.width = Some(taffy::Dimension::auto());
     self
   }
+  #[must_use]
   fn h_auto(mut self) -> Self {
     self.style().size.height = Some(taffy::Dimension::auto());
     self
   }
+  #[must_use]
   fn min_w(mut self, w: f32) -> Self {
     self.style().min_size.width = Some(taffy::Dimension::length(w));
     self
   }
+  #[must_use]
   fn min_h(mut self, h: f32) -> Self {
     self.style().min_size.height = Some(taffy::Dimension::length(h));
     self
   }
+  #[must_use]
   fn max_w(mut self, w: f32) -> Self {
     self.style().max_size.width = Some(taffy::Dimension::length(w));
     self
   }
+  #[must_use]
   fn max_h(mut self, h: f32) -> Self {
     self.style().max_size.height = Some(taffy::Dimension::length(h));
     self
   }
+  #[must_use]
   fn min_wp(mut self, w: f32) -> Self {
     self.style().min_size.width = Some(taffy::Dimension::percent(w));
     self
   }
+  #[must_use]
   fn min_hp(mut self, h: f32) -> Self {
     self.style().min_size.height = Some(taffy::Dimension::percent(h));
     self
   }
+  #[must_use]
   fn max_wp(mut self, w: f32) -> Self {
     self.style().max_size.width = Some(taffy::Dimension::percent(w));
     self
   }
+  #[must_use]
   fn max_hp(mut self, h: f32) -> Self {
     self.style().max_size.height = Some(taffy::Dimension::percent(h));
     self
   }
+  #[must_use]
   fn w_full(mut self) -> Self {
     self.style().size.width = Some(taffy::Dimension::percent(1.));
     self
   }
+  #[must_use]
   fn h_full(mut self) -> Self {
     self.style().size.height = Some(taffy::Dimension::percent(1.));
     self
   }
+  #[must_use]
   fn size_auto(self) -> Self {
     self.w_auto().h_auto()
   }
+  #[must_use]
   fn size_full(self) -> Self {
     self.w_full().h_full()
   }
 
+  #[must_use]
   fn m(mut self, value: f32) -> Self {
     self.style().margin = taffy::Rect::length(value).into();
     self
   }
+  #[must_use]
   fn m_auto(mut self) -> Self {
     self.style().margin = taffy::Rect::auto().into();
     self
   }
+  #[must_use]
   fn mx(mut self, x: f32) -> Self {
     self.style().margin.left = Some(taffy::LengthPercentageAuto::length(x));
     self.style().margin.right = Some(taffy::LengthPercentageAuto::length(x));
     self
   }
+  #[must_use]
   fn my(mut self, y: f32) -> Self {
     self.style().margin.bottom = Some(taffy::LengthPercentageAuto::length(y));
     self.style().margin.top = Some(taffy::LengthPercentageAuto::length(y));
     self
   }
+  #[must_use]
   fn ml(mut self, l: f32) -> Self {
     self.style().margin.left = Some(taffy::LengthPercentageAuto::length(l));
     self
   }
+  #[must_use]
   fn mr(mut self, r: f32) -> Self {
     self.style().margin.right = Some(taffy::LengthPercentageAuto::length(r));
     self
   }
+  #[must_use]
   fn mt(mut self, t: f32) -> Self {
     self.style().margin.top = Some(taffy::LengthPercentageAuto::length(t));
     self
   }
+  #[must_use]
   fn mb(mut self, b: f32) -> Self {
     self.style().margin.bottom = Some(taffy::LengthPercentageAuto::length(b));
     self
   }
 
+  #[must_use]
   fn p(mut self, value: f32) -> Self {
     self.style().padding = taffy::Rect::length(value).into();
     self
   }
+  #[must_use]
   fn px(mut self, x: f32) -> Self {
     self.style().padding.left = Some(taffy::LengthPercentage::length(x));
     self.style().padding.right = Some(taffy::LengthPercentage::length(x));
     self
   }
+  #[must_use]
   fn py(mut self, y: f32) -> Self {
     self.style().padding.bottom = Some(taffy::LengthPercentage::length(y));
     self.style().padding.top = Some(taffy::LengthPercentage::length(y));
     self
   }
+  #[must_use]
   fn pl(mut self, l: f32) -> Self {
     self.style().padding.left = Some(taffy::LengthPercentage::length(l));
     self
   }
+  #[must_use]
   fn pr(mut self, r: f32) -> Self {
     self.style().padding.right = Some(taffy::LengthPercentage::length(r));
     self
   }
+  #[must_use]
   fn pt(mut self, t: f32) -> Self {
     self.style().padding.top = Some(taffy::LengthPercentage::length(t));
     self
   }
+  #[must_use]
   fn pb(mut self, b: f32) -> Self {
     self.style().padding.bottom = Some(taffy::LengthPercentage::length(b));
     self
   }
 
+  #[must_use]
   fn border(mut self) -> Self {
     self.style().border = taffy::Rect::length(1.).into();
     self
   }
+  #[must_use]
   fn border_x(mut self) -> Self {
     self.style().border.left = Some(taffy::LengthPercentage::length(1.));
     self.style().border.right = Some(taffy::LengthPercentage::length(1.));
     self
   }
+  #[must_use]
   fn border_y(mut self) -> Self {
     self.style().border.bottom = Some(taffy::LengthPercentage::length(1.));
     self.style().border.top = Some(taffy::LengthPercentage::length(1.));
     self
   }
+  #[must_use]
   fn border_l(mut self) -> Self {
     self.style().border.left = Some(taffy::LengthPercentage::length(1.));
     self
   }
+  #[must_use]
   fn border_r(mut self) -> Self {
     self.style().border.right = Some(taffy::LengthPercentage::length(1.));
     self
   }
+  #[must_use]
   fn border_t(mut self) -> Self {
     self.style().border.top = Some(taffy::LengthPercentage::length(1.));
     self
   }
+  #[must_use]
   fn border_b(mut self) -> Self {
     self.style().border.bottom = Some(taffy::LengthPercentage::length(1.));
     self
   }
 
+  #[must_use]
   fn items_start(mut self) -> Self {
     self.style().align_items = Some(taffy::AlignItems::FLEX_START);
     self
   }
+  #[must_use]
   fn items_end(mut self) -> Self {
     self.style().align_items = Some(taffy::AlignItems::FLEX_END);
     self
   }
+  #[must_use]
   fn items_end_safe(mut self) -> Self {
     self.style().align_items = Some(taffy::AlignItems::SAFE_FLEX_END);
     self
   }
+  #[must_use]
   fn items_center(mut self) -> Self {
     self.style().align_items = Some(taffy::AlignItems::CENTER);
     self
   }
+  #[must_use]
   fn items_center_safe(mut self) -> Self {
     self.style().align_items = Some(taffy::AlignItems::SAFE_CENTER);
     self
   }
+  #[must_use]
   fn items_baseline(mut self) -> Self {
     self.style().align_items = Some(taffy::AlignItems::BASELINE);
     self
   }
+  #[must_use]
   fn items_stretch(mut self) -> Self {
     self.style().align_items = Some(taffy::AlignItems::STRETCH);
     self
   }
 
+  #[must_use]
   fn self_auto(mut self) -> Self {
     self.style().align_self = None;
     self
   }
+  #[must_use]
   fn self_start(mut self) -> Self {
     self.style().align_self = Some(taffy::AlignItems::FLEX_START);
     self
   }
+  #[must_use]
   fn self_end(mut self) -> Self {
     self.style().align_self = Some(taffy::AlignItems::FLEX_END);
     self
   }
+  #[must_use]
   fn self_end_safe(mut self) -> Self {
     self.style().align_self = Some(taffy::AlignItems::SAFE_FLEX_END);
     self
   }
+  #[must_use]
   fn self_center(mut self) -> Self {
     self.style().align_self = Some(taffy::AlignItems::CENTER);
     self
   }
+  #[must_use]
   fn self_center_safe(mut self) -> Self {
     self.style().align_self = Some(taffy::AlignItems::SAFE_CENTER);
     self
   }
+  #[must_use]
   fn self_baseline(mut self) -> Self {
     self.style().align_self = Some(taffy::AlignItems::BASELINE);
     self
   }
+  #[must_use]
   fn self_stretch(mut self) -> Self {
     self.style().align_self = Some(taffy::AlignItems::STRETCH);
     self
   }
 
+  #[must_use]
   fn justify_items_start(mut self) -> Self {
     self.style().justify_items = Some(taffy::AlignItems::START);
     self
   }
+  #[must_use]
   fn justify_items_end(mut self) -> Self {
     self.style().justify_items = Some(taffy::AlignItems::END);
     self
   }
+  #[must_use]
   fn justify_items_end_safe(mut self) -> Self {
     self.style().justify_items = Some(taffy::AlignItems::SAFE_END);
     self
   }
+  #[must_use]
   fn justify_items_center(mut self) -> Self {
     self.style().justify_items = Some(taffy::AlignItems::CENTER);
     self
   }
+  #[must_use]
   fn justify_items_center_safe(mut self) -> Self {
     self.style().justify_items = Some(taffy::AlignItems::SAFE_CENTER);
     self
   }
+  #[must_use]
   fn justify_items_stretch(mut self) -> Self {
     self.style().justify_items = Some(taffy::AlignItems::STRETCH);
     self
   }
 
+  #[must_use]
   fn justify_self_auto(mut self) -> Self {
     self.style().justify_self = None;
     self
   }
+  #[must_use]
   fn justify_self_start(mut self) -> Self {
     self.style().justify_self = Some(taffy::AlignItems::START);
     self
   }
+  #[must_use]
   fn justify_self_end(mut self) -> Self {
     self.style().justify_self = Some(taffy::AlignItems::END);
     self
   }
+  #[must_use]
   fn justify_self_end_safe(mut self) -> Self {
     self.style().justify_self = Some(taffy::AlignItems::SAFE_END);
     self
   }
+  #[must_use]
   fn justify_self_center(mut self) -> Self {
     self.style().justify_self = Some(taffy::AlignItems::CENTER);
     self
   }
+  #[must_use]
   fn justify_self_center_safe(mut self) -> Self {
     self.style().justify_self = Some(taffy::AlignItems::SAFE_CENTER);
     self
   }
+  #[must_use]
   fn justify_self_stretch(mut self) -> Self {
     self.style().justify_self = Some(taffy::AlignItems::STRETCH);
     self
   }
 
+  #[must_use]
   fn content_start(mut self) -> Self {
     self.style().align_content = Some(taffy::AlignContent::FLEX_START);
     self
   }
+  #[must_use]
   fn content_end(mut self) -> Self {
     self.style().align_content = Some(taffy::AlignContent::FLEX_END);
     self
   }
+  #[must_use]
   fn content_center(mut self) -> Self {
     self.style().align_content = Some(taffy::AlignContent::CENTER);
     self
   }
+  #[must_use]
   fn content_between(mut self) -> Self {
     self.style().align_content = Some(taffy::AlignContent::SPACE_BETWEEN);
     self
   }
+  #[must_use]
   fn content_around(mut self) -> Self {
     self.style().align_content = Some(taffy::AlignContent::SPACE_AROUND);
     self
   }
+  #[must_use]
   fn content_evenly(mut self) -> Self {
     self.style().align_content = Some(taffy::AlignContent::SPACE_EVENLY);
     self
   }
+  #[must_use]
   fn content_stretch(mut self) -> Self {
     self.style().align_content = Some(taffy::AlignContent::STRETCH);
     self
   }
 
+  #[must_use]
   fn justify_start(mut self) -> Self {
     self.style().justify_content = Some(taffy::AlignContent::FLEX_START);
     self
   }
+  #[must_use]
   fn justify_end(mut self) -> Self {
     self.style().justify_content = Some(taffy::AlignContent::FLEX_END);
     self
   }
+  #[must_use]
   fn justify_end_safe(mut self) -> Self {
     self.style().justify_content = Some(taffy::AlignContent::SAFE_FLEX_END);
     self
   }
+  #[must_use]
   fn justify_center(mut self) -> Self {
     self.style().justify_content = Some(taffy::AlignContent::CENTER);
     self
   }
+  #[must_use]
   fn justify_center_safe(mut self) -> Self {
     self.style().justify_content = Some(taffy::AlignContent::SAFE_CENTER);
     self
   }
+  #[must_use]
   fn justify_between(mut self) -> Self {
     self.style().justify_content = Some(taffy::AlignContent::SPACE_BETWEEN);
     self
   }
+  #[must_use]
   fn justify_around(mut self) -> Self {
     self.style().justify_content = Some(taffy::AlignContent::SPACE_AROUND);
     self
   }
+  #[must_use]
   fn justify_evenly(mut self) -> Self {
     self.style().justify_content = Some(taffy::AlignContent::SPACE_EVENLY);
     self
   }
+  #[must_use]
   fn justify_stretch(mut self) -> Self {
     self.style().justify_content = Some(taffy::AlignContent::STRETCH);
     self
   }
 
+  #[must_use]
   fn gap(mut self, value: f32) -> Self {
     self.style().gap = taffy::Size::length(value).into();
     self
   }
+  #[must_use]
   fn gap_x(mut self, x: f32) -> Self {
     self.style().gap.width = Some(taffy::LengthPercentage::length(x));
     self
   }
+  #[must_use]
   fn gap_y(mut self, y: f32) -> Self {
     self.style().gap.height = Some(taffy::LengthPercentage::length(y));
     self
   }
 
+  #[must_use]
   fn flex_row(mut self) -> Self {
     self.style().flex_direction = Some(taffy::FlexDirection::Row);
     self
   }
+  #[must_use]
   fn flex_row_reverse(mut self) -> Self {
     self.style().flex_direction = Some(taffy::FlexDirection::RowReverse);
     self
   }
+  #[must_use]
   fn flex_col(mut self) -> Self {
     self.style().flex_direction = Some(taffy::FlexDirection::Column);
     self
   }
+  #[must_use]
   fn flex_col_reverse(mut self) -> Self {
     self.style().flex_direction = Some(taffy::FlexDirection::ColumnReverse);
     self
   }
 
+  #[must_use]
   fn flex_nowrap(mut self) -> Self {
     self.style().flex_wrap = Some(taffy::FlexWrap::NoWrap);
     self
   }
+  #[must_use]
   fn flex_wrap(mut self) -> Self {
     self.style().flex_wrap = Some(taffy::FlexWrap::Wrap);
     self
   }
+  #[must_use]
   fn flex_wrap_reverse(mut self) -> Self {
     self.style().flex_wrap = Some(taffy::FlexWrap::WrapReverse);
     self
   }
 
+  #[must_use]
   fn flex_basis(mut self, value: f32) -> Self {
     self.style().flex_basis = Some(taffy::Dimension::length(value));
     self
   }
+  #[must_use]
   fn flex_grow(mut self, value: f32) -> Self {
     self.style().flex_grow = Some(value);
     self
   }
+  #[must_use]
   fn flex_shrink(mut self, value: f32) -> Self {
     self.style().flex_shrink = Some(value);
     self
   }
 
+  #[must_use]
   fn bg(mut self, background: Rgb) -> Self {
     self.style().background = Some(background);
     self
   }
 
+  #[must_use]
   fn grid_rows(mut self, rows: u16) -> Self {
     self.style().grid_template_rows = Some(vec![taffy::style_helpers::repeat(
       rows,
@@ -1254,6 +1387,7 @@ pub trait StyleableElement: Sized {
     )]);
     self
   }
+  #[must_use]
   fn grid_cols(mut self, rows: u16) -> Self {
     self.style().grid_template_columns =
       Some(vec![taffy::style_helpers::repeat(
@@ -1281,12 +1415,22 @@ pub trait ElementExt {
     f(self)
   }
 
+  #[must_use]
   fn when<F>(self, condition: bool, f: F) -> Self
   where
     Self: Sized,
     F: FnOnce(Self) -> Self,
   {
     self.map(|this| if condition { f(this) } else { this })
+  }
+
+  #[must_use]
+  fn refine_style(mut self, refinement: &StyleRefinement) -> Self
+  where
+    Self: Sized + StyleableElement,
+  {
+    self.style().refine(refinement);
+    self
   }
 }
 impl<T> ElementExt for T where T: IntoElement {}

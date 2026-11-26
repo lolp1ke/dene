@@ -186,27 +186,27 @@ impl Terminal {
         i += 1;
         if i % w == 0 {
           break;
-        };
+        }
       }
 
       _ = queue!(self.stdout, cursor::MoveTo(x, y));
       if cell.fg != cur_fg {
         _ = queue!(self.stdout, style::SetForegroundColor(cell.fg.into()));
         cur_fg = cell.fg;
-      };
+      }
       if cell.bg != cur_bg {
         _ = queue!(self.stdout, style::SetBackgroundColor(cell.bg.into()));
         cur_bg = cell.bg;
-      };
+      }
 
       _ = queue!(self.stdout, style::Print(&text));
     }
     if changed {
       _ = queue!(self.stdout, style::ResetColor);
       _ = queue!(self.stdout, style::SetAttribute(style::Attribute::Reset));
-    };
+    }
 
-    for overlay in self.ansi_overlays.iter() {
+    for overlay in &self.ansi_overlays {
       let index = usize::from(overlay.y) * w + usize::from(overlay.x);
       let cell = &self.back.cells[index];
       _ = queue!(
@@ -383,7 +383,7 @@ impl Terminal {
         || y >= i64::from(rect.y) + i64::from(rect.height)
       {
         return true;
-      };
+      }
     }
     false
   }
@@ -409,7 +409,7 @@ impl Buffer {
   }
 
   fn clear(&mut self) {
-    for cell in self.cells.iter_mut() {
+    for cell in &mut self.cells {
       cell.clear_all();
     }
   }

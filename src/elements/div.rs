@@ -35,10 +35,10 @@ impl Element for Div {
       let mut focus_handle = cx.focus_handle();
       if let Some(tab_index) = self.interactivity.tab_index {
         focus_handle.tab_index(tab_index);
-      };
+      }
       focus_handle.tab_stop(self.interactivity.tab_stop);
       self.interactivity.tracking_focus_handle = Some(focus_handle);
-    };
+    }
 
     if let Some(focus_handle) =
       self.interactivity.tracking_focus_handle.as_ref()
@@ -65,7 +65,7 @@ impl Element for Div {
       || matches!(style.overflow.y, taffy::Overflow::Scroll)
     {
       todo!();
-    };
+    }
 
     let child_node_ids = self
       .children
@@ -94,10 +94,10 @@ impl Element for Div {
       self.interactivity.tracking_focus_handle.as_ref()
     {
       window.set_focus_handle(focus_handle);
-    };
+    }
     if !self.interactivity.key_contexts.is_empty() {
       window.set_key_contexts(&self.interactivity.key_contexts);
-    };
+    }
 
     let mut child_min = Pos {
       x: u16::MAX,
@@ -109,7 +109,7 @@ impl Element for Div {
     } else if let Some(scroll_handle) =
       self.interactivity.tracking_scroll_handle.as_ref()
     {
-      for child_node_id in request_layout.child_node_ids.iter() {
+      for child_node_id in &request_layout.child_node_ids {
         let child_bounds = window.layout_bounds(*child_node_id);
         child_min = child_min.min(child_bounds.as_pos());
         child_max = child_max.max(child_bounds.as_bottom_right_pos());
@@ -134,7 +134,7 @@ impl Element for Div {
       scroll_handle.0.borrow_mut().content_size = content_size;
       content_size
     } else {
-      for child_node_id in request_layout.child_node_ids.iter() {
+      for child_node_id in &request_layout.child_node_ids {
         let child_bounds = window.layout_bounds(*child_node_id);
         child_min = child_min.min(child_bounds.as_pos());
         child_max = child_max.max(child_bounds.as_bottom_right_pos());
@@ -147,9 +147,9 @@ impl Element for Div {
 
     if matches!(request_layout.style.display, taffy::Display::None) {
       return None;
-    };
+    }
 
-    for child in self.children.iter_mut() {
+    for child in &mut self.children {
       child.pre_render(window, cx);
     }
 
@@ -165,23 +165,23 @@ impl Element for Div {
   ) {
     if matches!(request_layout.style.display, taffy::Display::None) {
       return;
-    };
+    }
 
     if let Some(bg) = request_layout.style.background {
       get_terminal().write().fill_background(bounds, bg);
-    };
+    }
 
     let mut tab_index = None;
     if self.interactivity.tab_stop {
       tab_index = self.interactivity.tab_index;
-    };
+    }
     if let Some(focus_handle) =
       self.interactivity.tracking_focus_handle.as_mut()
     {
       focus_handle.tab_index(self.interactivity.tab_index.unwrap_or(0));
       focus_handle.tab_stop(self.interactivity.tab_stop);
       window.next_frame.tab_stop_map.insert(focus_handle);
-    };
+    }
 
     let scroll_offset = self
       .interactivity
@@ -222,7 +222,7 @@ impl Element for Div {
         height: bounds.height.saturating_sub(bt.saturating_add(bb)),
       };
       get_terminal().write().push_clip_axes(clip, clip_x, clip_y);
-    };
+    }
 
     window.with_tab_group(tab_index, |window| {
       self.interactivity.apply_mouse_listeners(&hitbox, window);
@@ -234,7 +234,7 @@ impl Element for Div {
         terminal.draw_offset.1 -= i64::from(scroll_offset.y);
         old_offset
       };
-      for child in self.children.iter_mut() {
+      for child in &mut self.children {
         child.render(window, cx);
       }
       get_terminal().write().draw_offset = old_offset;
@@ -242,7 +242,7 @@ impl Element for Div {
 
     if has_clip {
       get_terminal().write().clip_rect_stack.pop();
-    };
+    }
     let border = request_layout.style.border;
     draw_border(bounds, border);
   }
@@ -276,8 +276,9 @@ impl InteractiveElement for Div {
   }
 }
 
+#[must_use]
 pub fn div() -> Div {
-  Default::default()
+  Div::default()
 }
 
 fn draw_border(bounds: Rect, border: taffy::Rect<taffy::LengthPercentage>) {
@@ -288,7 +289,7 @@ fn draw_border(bounds: Rect, border: taffy::Rect<taffy::LengthPercentage>) {
 
   if (bl | br | bt | bb) == 0 || bounds.width == 0 || bounds.height == 0 {
     return;
-  };
+  }
   let mut terminal = get_terminal().write();
 
   let left = bounds.x;
@@ -302,41 +303,41 @@ fn draw_border(bounds: Rect, border: taffy::Rect<taffy::LengthPercentage>) {
         terminal.write_at(left, y, "│");
       }
     }
-  };
+  }
   if br > 0 {
     for offset in bt..bounds.height.saturating_sub(bb) {
       if let Some(y) = top.checked_add(offset) {
         terminal.write_at(right, y, "│");
       }
     }
-  };
+  }
   if bt > 0 {
     let y = top;
     if bl > 0 {
       terminal.write_at(left, y, "┌");
-    };
+    }
     if let Some(x_start) = left.checked_add(bl) {
       let line =
         "─".repeat(bounds.width.saturating_sub(bl.saturating_add(br)) as usize);
       terminal.write_at(x_start, y, line.as_str());
-    };
+    }
     if br > 0 {
       terminal.write_at(right, y, "┐");
-    };
-  };
+    }
+  }
   if bb > 0 {
     let y = bottom;
 
     if bl > 0 {
       terminal.write_at(left, y, "└");
-    };
+    }
     if let Some(x_start) = left.checked_add(bl) {
       let line =
         "─".repeat(bounds.width.saturating_sub(bl.saturating_add(br)) as usize);
       terminal.write_at(x_start, y, line.as_str());
-    };
+    }
     if br > 0 {
       terminal.write_at(right, y, "┘");
-    };
-  };
+    }
+  }
 }

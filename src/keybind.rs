@@ -22,16 +22,16 @@ impl Keybinds {
     let mut exact = SmallVec::<[&Keybind; 1]>::new();
     let mut has_pending = false;
 
-    for binding in self.0.iter() {
+    for binding in &self.0 {
       if !binding.match_keystrokes(input) {
         continue;
-      };
+      }
 
       if input.len() == binding.keystrokes.len() {
         exact.push(binding);
       } else {
         has_pending = true;
-      };
+      }
     }
 
     (exact, has_pending)
@@ -66,12 +66,12 @@ impl Keybind {
   fn match_keystrokes(&self, input: &[&Keystroke]) -> bool {
     if input.len() > self.keystrokes.len() {
       return false;
-    };
+    }
 
     for (target, input) in self.keystrokes.iter().zip(input.iter()) {
       if target.key != input.key || target.modifiers != input.modifiers {
         return false;
-      };
+      }
     }
     true
   }
@@ -102,7 +102,7 @@ impl KeybindContextPredicate {
     let (this, rest) = Self::parse_expr(src, 0)?;
     if !rest.is_empty() {
       anyhow::bail!("unexpected end: {}", rest);
-    };
+    }
     Ok(this)
   }
 
@@ -130,7 +130,7 @@ impl KeybindContextPredicate {
           lhs = (constructor)(lhs, rhs)?;
           src = rest;
           continue 'parse;
-        };
+        }
       }
 
       break 'parse;
@@ -158,12 +158,15 @@ impl KeybindContextPredicate {
     }
   }
 
+  #[allow(clippy::unnecessary_wraps)]
   fn new_or(self, other: Self) -> anyhow::Result<Self> {
     Ok(Self::Or(Box::new(self), Box::new(other)))
   }
+  #[allow(clippy::unnecessary_wraps)]
   fn new_and(self, other: Self) -> anyhow::Result<Self> {
     Ok(Self::And(Box::new(self), Box::new(other)))
   }
+  #[allow(clippy::needless_pass_by_value)]
   fn new_eq(self, other: Self) -> anyhow::Result<Self> {
     if let (Self::Ident(lhs), Self::Ident(rhs)) = (&self, &other) {
       Ok(Self::Eq(lhs.clone(), rhs.clone()))
@@ -171,6 +174,7 @@ impl KeybindContextPredicate {
       anyhow::bail!("Idents are expected; found: {:?} = {:?}", self, other)
     }
   }
+  #[allow(clippy::needless_pass_by_value)]
   fn new_neq(self, other: Self) -> anyhow::Result<Self> {
     if let (Self::Ident(lhs), Self::Ident(rhs)) = (&self, &other) {
       Ok(Self::Neq(lhs.clone(), rhs.clone()))
@@ -222,7 +226,7 @@ impl Keystroke {
       if component.eq_ignore_ascii_case("shift") {
         modifiers |= Modifiers::SHIFT;
         continue;
-      };
+      }
       if component.eq_ignore_ascii_case("meta")
         || component.eq_ignore_ascii_case("cmd")
         || component.eq_ignore_ascii_case("super")
@@ -230,7 +234,7 @@ impl Keystroke {
       {
         modifiers |= Modifiers::META;
         continue;
-      };
+      }
 
       let mut key_str = component.to_string();
 
@@ -252,24 +256,24 @@ impl Keystroke {
         key_str.make_ascii_lowercase();
       } else {
         key_str.make_ascii_lowercase();
-      };
+      }
 
       key = Some(key_str.clone());
       if modifiers.contains(Modifiers::SHIFT) {
-        key_char = Some(key_str.to_uppercase().to_string());
+        key_char = Some(key_str.to_uppercase().clone());
       } else {
-        key_char = Some(key_str.to_lowercase().to_string());
-      };
+        key_char = Some(key_str.to_lowercase().clone());
+      }
     }
 
     let key = key
       .ok_or_else(|| anyhow::anyhow!("Invalid keystroke: {}", source))?
       .into();
     let key_char = key_char.and_then(|key_char| {
-      if key_char.len() != 1 {
-        None
-      } else {
+      if key_char.len() == 1 {
         Some(key_char.into())
+      } else {
+        None
       }
     });
 
@@ -299,18 +303,18 @@ impl From<crossterm::event::KeyModifiers> for Modifiers {
     let mut this = Self::NONE;
     if value.intersects(KeyModifiers::SHIFT) {
       this |= Self::SHIFT;
-    };
+    }
     if value.intersects(KeyModifiers::CONTROL) {
       this |= Self::CONTROL;
-    };
+    }
     if value.intersects(KeyModifiers::ALT) {
       this |= Self::ALT;
-    };
+    }
     if value.intersects(
       KeyModifiers::HYPER | KeyModifiers::META | KeyModifiers::SUPER,
     ) {
       this |= Self::META;
-    };
+    }
     this
   }
 }

@@ -42,6 +42,7 @@ impl<E> Entity<E> {
     self.any
   }
 
+  #[must_use]
   pub const fn id(&self) -> EntityId {
     self.any.entity_id
   }

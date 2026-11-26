@@ -38,7 +38,7 @@ impl Element for Text {
   fn pre_render(
     &mut self,
     _: Rect,
-    _: &mut Self::RequestLayoutState,
+    (): &mut Self::RequestLayoutState,
     _: &mut Window,
     _: &mut App,
   ) -> Self::PreRenderState {
@@ -46,8 +46,8 @@ impl Element for Text {
   fn render(
     &mut self,
     bounds: Rect,
-    _: &mut Self::RequestLayoutState,
-    _: &mut Self::PreRenderState,
+    (): &mut Self::RequestLayoutState,
+    (): &mut Self::PreRenderState,
     _: &mut Window,
     _: &mut App,
   ) {
@@ -58,7 +58,7 @@ impl Element for Text {
       let y = bounds.y + i as u16;
       if y >= bounds.y + bounds.height {
         break;
-      };
+      }
       terminal.write_at(bounds.x, y, line);
     }
     // terminal.flush();
