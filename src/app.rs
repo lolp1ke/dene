@@ -68,12 +68,10 @@ impl Application {
     };
 
     if let Ok(rt) = rt {
-      if matches!(
-        rt.runtime_flavor(),
-        tokio::runtime::RuntimeFlavor::CurrentThread
-      ) {
-        panic!("required runtime flavor is `rt-multi-thread`");
-      }
+      assert!(
+        rt.runtime_flavor() != tokio::runtime::RuntimeFlavor::CurrentThread,
+        "required runtime flavor is `rt-multi-thread`"
+      );
 
       let handle = Arc::new(rt);
       self
