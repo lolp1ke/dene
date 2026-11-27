@@ -3,9 +3,10 @@
 use std::rc::Rc;
 
 use crate::{
-  AnyElement, App, Component, Context, Div, ElementExt, Entity, FocusHandle,
-  Focusable, IndexPath, InteractiveElement, IntoElement, Keybind, Keystroke,
-  ParentElement, Render, RenderOnce, StyleRefinement, StyleableElement,
+  AnyElement, App, Component, Confirmable, Context, Disableable, Div,
+  ElementExt, Entity, EventDispatcher, FocusHandle, Focusable, IndexPath,
+  InteractiveElement, IntoElement, Keybind, Keystroke, ParentElement, Render,
+  RenderOnce, ScrollAlignment, Selectable, StyleRefinement, StyleableElement,
   UniformListScrollHandle, Window, div, uniform_list,
 };
 
@@ -19,7 +20,7 @@ mod actions {
     [
       Prev,
       Next,
-      Clear,
+      Cancel,
       Submit,
     ]
   }
@@ -31,6 +32,7 @@ where
   A: ListAdapter,
 {
   state: Entity<ListState<A>>,
+  separator: Option<bool>,
 }
 impl<A> List<A>
 where
@@ -38,16 +40,42 @@ where
 {
   #[must_use]
   pub fn new(state: &Entity<ListState<A>>) -> Self {
-    let state = state.clone();
-    Self { state }
+    Self {
+      state: state.clone(),
+      separator: None,
+    }
+  }
+
+  #[must_use]
+  pub fn separator(mut self, separator: impl Into<Option<bool>>) -> Self {
+    self.separator = separator.into();
+    self
   }
 }
 impl<A> RenderOnce for List<A>
 where
   A: 'static + ListAdapter,
 {
-  fn render(self, _: &mut Window, _: &mut App) -> impl IntoElement {
-    div().size_full().flex().flex_col().child(self.state)
+  fn render(self, window: &mut Window, cx: &mut App) -> impl IntoElement {
+    if let Some(separator) = self.separator {
+      self
+        .state
+        .update(cx, |state, _| state.separator = separator);
+    }
+
+    div()
+      .size_full()
+      .min_h(0.)
+      .flex()
+      .flex_col()
+      .map(|this| {
+        this
+          .on_action(window.listener(&self.state, ListState::prev))
+          .on_action(window.listener(&self.state, ListState::next))
+          .on_action(window.listener(&self.state, ListState::cancel))
+          .on_action(window.listener(&self.state, ListState::submit))
+      })
+      .child(self.state)
   }
 }
 impl<A> IntoElement for List<A>
@@ -86,6 +114,12 @@ impl ListItem {
       selected: false,
     }
   }
+
+  #[must_use]
+  pub fn kind(mut self, kind: ListItemKind) -> Self {
+    self.kind = kind;
+    self
+  }
 }
 impl StyleableElement for ListItem {
   fn style(&mut self) -> &mut StyleRefinement {
@@ -110,8 +144,14 @@ impl RenderOnce for ListItem {
       .relative()
       .items_center()
       .justify_between()
+      .w_full()
       .refine_style(&self.style)
-      .children(self.children)
+      .when(self.kind == ListItemKind::Item, |this| {
+        this.children(self.children)
+      })
+      .when(self.kind == ListItemKind::Separator, |this| {
+        this.child(div().self_stretch().mx(2.).border_t())
+      })
   }
 }
 impl IntoElement for ListItem {
@@ -120,6 +160,37 @@ impl IntoElement for ListItem {
     Component::new(self)
   }
 }
+impl Selectable for ListItem {
+  fn selected(mut self, selected: bool) -> Self {
+    self.selected = selected;
+    self
+  }
+
+  fn is_selected(&self) -> bool {
+    self.selected
+  }
+}
+impl Confirmable for ListItem {
+  fn confirmed(mut self, confirmed: bool) -> Self {
+    self.confirmed = confirmed;
+    self
+  }
+
+  fn is_confirmed(&self) -> bool {
+    self.confirmed
+  }
+}
+impl Disableable for ListItem {
+  fn disabled(mut self, disabled: bool) -> Self {
+    self.disabled = disabled;
+    self
+  }
+
+  fn is_disabled(&self) -> bool {
+    self.disabled
+  }
+}
+
 impl Default for ListItem {
   fn default() -> Self {
     Self::new()
@@ -127,6 +198,7 @@ impl Default for ListItem {
 }
 
 #[derive(Debug)]
+#[derive(PartialEq)]
 pub enum ListItemKind {
   Item,
   Separator,
@@ -142,6 +214,8 @@ where
   scroll_handle: UniformListScrollHandle,
 
   selected_idx: Option<IndexPath>,
+  separator: bool,
+  selectable: bool,
 }
 impl<A> ListState<A>
 where
@@ -154,6 +228,8 @@ where
       rows: Rows::default(),
       scroll_handle: UniformListScrollHandle::new(),
       selected_idx: None,
+      separator: false,
+      selectable: true,
     }
   }
 
@@ -170,7 +246,17 @@ where
       if count == 0 {
         continue;
       }
-      if self.adapter.has_header(section) {
+
+      let has_header = self.adapter.has_header(section);
+      if self.separator && !entities.is_empty() {
+        let prev_was_footer =
+          matches!(entities.last(), Some(RowEntry::Footer(..)));
+        if prev_was_footer || has_header {
+          entities.push(RowEntry::Separator);
+        }
+      }
+
+      if has_header {
         entities.push(RowEntry::Header(section));
       }
       for row in 0..count {
@@ -214,10 +300,11 @@ where
     let rows = self.rows.clone();
 
     div()
+      .size_full()
+      .min_h(0.)
       .flex()
       .flex_col()
       .flex_grow(1.)
-      .size_full()
       .relative()
       .when(items_count == 0, |this| {
         this.child(self.adapter.render_empty(window, cx))
@@ -248,12 +335,112 @@ where
                     .adapter
                     .render_footer(section_idx, window, cx)
                     .map(IntoElement::into_any_element),
+                  RowEntry::Separator => Some(
+                    ListItem::new()
+                      .kind(ListItemKind::Separator)
+                      .into_any_element(),
+                  ),
                 })
               })
               .collect::<Vec<_>>()
           },
         ))
       })
+  }
+}
+impl<A> ListState<A>
+where
+  A: ListAdapter,
+{
+  #[must_use]
+  pub fn separator(mut self, separator: bool) -> Self {
+    self.separator = separator;
+    self
+  }
+
+  #[must_use]
+  pub fn selectable(mut self, selectable: bool) -> Self {
+    self.selectable = selectable;
+    self
+  }
+}
+impl<A> ListState<A>
+where
+  A: ListAdapter,
+{
+  fn select_item(
+    &mut self,
+    idx_path: IndexPath,
+    window: &mut Window,
+    cx: &mut Context<Self>,
+  ) {
+    if !self.selectable {
+      return;
+    }
+
+    self.selected_idx = Some(idx_path);
+    self.adapter.set_selected_idx(Some(idx_path), cx);
+    if let Some(pos) = self.rows.position_of(idx_path) {
+      self
+        .scroll_handle
+        .scroll_to_item(pos, ScrollAlignment::Nearest);
+    }
+    cx.emit(ListEvent::Select(idx_path));
+    cx.notify();
+  }
+
+  #[allow(clippy::trivially_copy_pass_by_ref)]
+  fn prev(&mut self, _: &Prev, window: &mut Window, cx: &mut Context<Self>) {
+    if self.rows.len() == 0 {
+      return;
+    }
+
+    if let Some(prev_idx) = self.rows.prev(self.selected_idx) {
+      self.select_item(prev_idx, window, cx);
+    }
+  }
+  #[allow(clippy::trivially_copy_pass_by_ref)]
+  fn next(&mut self, _: &Next, window: &mut Window, cx: &mut Context<Self>) {
+    if self.rows.len() == 0 {
+      return;
+    }
+
+    if let Some(next_idx) = self.rows.next(self.selected_idx) {
+      self.select_item(next_idx, window, cx);
+    }
+  }
+  #[allow(clippy::trivially_copy_pass_by_ref)]
+  fn cancel(
+    &mut self,
+    _: &Cancel,
+    window: &mut Window,
+    cx: &mut Context<Self>,
+  ) {
+    self.selected_idx = None;
+    self.adapter.set_selected_idx(None, cx);
+    self.adapter.cancel(window, cx);
+    cx.emit(ListEvent::Clear);
+    cx.notify();
+  }
+  #[allow(clippy::trivially_copy_pass_by_ref)]
+  fn submit(
+    &mut self,
+    _: &Submit,
+    window: &mut Window,
+    cx: &mut Context<Self>,
+  ) {
+    if self.rows.len() == 0 {
+      return;
+    }
+
+    let Some(idx) = self.selected_idx else {
+      return;
+    };
+
+    self.adapter.set_selected_idx(self.selected_idx, cx);
+    self.adapter.confirm(window, cx);
+    cx.emit(ListEvent::Submit(idx));
+    cx.notify();
   }
 }
 
@@ -284,9 +471,10 @@ where
       .key_context(KEY_CONTEXT)
       .tab_stop(true)
       .track_focus(&self.focus_handle)
+      .size_full()
+      .min_h(0.)
       .flex()
       .flex_col()
-      .size_full()
       .relative()
       .overflow_hidden()
       .when(!loading, |this| {
@@ -306,6 +494,24 @@ pub trait ListAdapter {
     1
   }
   fn items_count(&mut self, section: usize) -> usize;
+
+  fn set_selected_idx(
+    &mut self,
+    idx_path: Option<IndexPath>,
+    cx: &mut Context<ListState<Self>>,
+  ) where
+    Self: Sized;
+
+  fn confirm(&mut self, window: &mut Window, cx: &mut Context<ListState<Self>>)
+  where
+    Self: Sized,
+  {
+  }
+  fn cancel(&mut self, window: &mut Window, cx: &mut Context<ListState<Self>>)
+  where
+    Self: Sized,
+  {
+  }
 
   fn loading(&self, cx: &App) -> bool {
     false
@@ -389,6 +595,41 @@ impl Rows {
   fn len(&self) -> usize {
     self.entities.len()
   }
+
+  fn position_of(&self, path: IndexPath) -> Option<usize> {
+    self.entities.iter().position(
+      |row| matches!(row, RowEntry::Entry(idx_path) if *idx_path == path),
+    )
+  }
+
+  fn first_entry(&self) -> Option<IndexPath> {
+    self.entities.iter().find_map(RowEntry::entry_idx)
+  }
+  fn last_entry(&self) -> Option<IndexPath> {
+    self.entities.iter().rev().find_map(RowEntry::entry_idx)
+  }
+
+  fn prev(&self, path: Option<IndexPath>) -> Option<IndexPath> {
+    path
+      .and_then(|path| self.position_of(path))
+      .and_then(|pos| {
+        self.entities[..pos]
+          .iter()
+          .rev()
+          .find_map(RowEntry::entry_idx)
+      })
+      .or_else(|| self.last_entry())
+  }
+  fn next(&self, path: Option<IndexPath>) -> Option<IndexPath> {
+    path
+      .and_then(|path| self.position_of(path))
+      .and_then(|pos| {
+        self.entities[pos + 1..]
+          .iter()
+          .find_map(RowEntry::entry_idx)
+      })
+      .or_else(|| self.first_entry())
+  }
 }
 
 #[derive(Debug)]
@@ -397,13 +638,24 @@ enum RowEntry {
   Entry(IndexPath),
   Header(usize),
   Footer(usize),
+  Separator,
+}
+impl RowEntry {
+  fn entry_idx(&self) -> Option<IndexPath> {
+    match self {
+      Self::Entry(idx) => Some(*idx),
+      _ => None,
+    }
+  }
 }
 
+#[derive(Debug)]
 pub enum ListEvent {
-  Select(usize),
+  Select(IndexPath),
   Clear,
-  Submit(usize),
+  Submit(IndexPath),
 }
+impl<A> EventDispatcher<ListEvent> for ListState<A> where A: ListAdapter {}
 
 const KEY_CONTEXT: &str = "list";
 pub(crate) fn init(cx: &mut App) {
@@ -413,7 +665,7 @@ pub(crate) fn init(cx: &mut App) {
     Keybind::new(Next, [Keystroke::parse("down")], key_context),
     Keybind::new(Prev, [Keystroke::parse("left")], key_context),
     Keybind::new(Next, [Keystroke::parse("right")], key_context),
-    Keybind::new(Clear, [Keystroke::parse("esc")], key_context),
+    Keybind::new(Cancel, [Keystroke::parse("esc")], key_context),
     Keybind::new(Submit, [Keystroke::parse("return")], key_context),
   ]);
 }

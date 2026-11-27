@@ -64,7 +64,13 @@ tracing = [
 name = "hello_world"
 
 [[example]]
-name = "table"
+name = "uniform_list"
+
+[[example]]
+name = "background"
+
+[[example]]
+name = "list"
 
 [dependencies]
 anyhow = { workspace = true }

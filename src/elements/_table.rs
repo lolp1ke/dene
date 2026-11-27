@@ -512,7 +512,7 @@ where
         .when(matches!(align, TextAlign::Center), |this| {
           this.justify_center()
         })
-        .when(matches!(align, TextAlign::Right), |this| this.justify_end())
+        .when(align == TextAlign::Right, |this| this.justify_end())
         .child(content)
     };
 

@@ -1434,3 +1434,22 @@ pub trait ElementExt {
   }
 }
 impl<T> ElementExt for T where T: IntoElement {}
+
+pub trait Selectable: Sized {
+  #[must_use]
+  fn selected(self, selected: bool) -> Self;
+
+  fn is_selected(&self) -> bool;
+}
+pub trait Confirmable: Sized {
+  #[must_use]
+  fn confirmed(self, confirm: bool) -> Self;
+
+  fn is_confirmed(&self) -> bool;
+}
+pub trait Disableable: Sized {
+  #[must_use]
+  fn disabled(self, disable: bool) -> Self;
+
+  fn is_disabled(&self) -> bool;
+}

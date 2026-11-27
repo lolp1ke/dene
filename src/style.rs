@@ -6,6 +6,7 @@ use crate::Rgb;
 
 #[derive(Debug)]
 #[derive(Clone, Copy)]
+#[derive(PartialEq)]
 #[derive(Default)]
 pub enum TextAlign {
   #[default]

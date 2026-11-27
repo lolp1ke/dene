@@ -215,7 +215,7 @@ fn expand(input: DeriveInput) -> syn::Result<TokenStream> {
 fn is_nested(field: &Field) -> bool {
   field.attrs.iter().any(|attribute| {
     attribute.path().is_ident("refine")
-      && matches!(attribute.meta, syn::Meta::Path(_))
+      && matches!(attribute.meta, syn::Meta::Path(..))
   })
 }
 
@@ -237,7 +237,7 @@ fn is_optional(field: &Field) -> bool {
         &segment.arguments,
         PathArguments::AngleBracketed(arguments)
           if arguments.args.len() == 1
-            && matches!(arguments.args.first(), Some(GenericArgument::Type(_)))
+            && matches!(arguments.args.first(), Some(GenericArgument::Type(..)))
       )
   })
 }

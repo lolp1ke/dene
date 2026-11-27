@@ -6,9 +6,12 @@ use dene::{
   app::{App, AppContext, Application, Context},
   color::rgb,
   element::{
-    Component, IntoElement, ParentElement, Render, RenderOnce, StyleableElement,
+    Component, Confirmable, ElementExt, IntoElement, ParentElement, Render,
+    RenderOnce, Selectable, StyleableElement,
   },
-  elements::{IndexPath, List, ListAdapter, ListItem, ListState, div},
+  elements::{
+    IndexPath, List, ListAdapter, ListEvent, ListItem, ListState, div,
+  },
   entity::Entity,
   window::{Window, WindowOptions},
 };
@@ -25,48 +28,37 @@ fn main() {
 
 struct ListExample {
   list_state: Entity<ListState<TitlesListAdapter>>,
+  status: Arc<str>,
 }
 impl ListExample {
   fn new(window: &mut Window, cx: &mut Context<Self>) -> Self {
+    let this = cx.entity();
     let list_state = cx.new_entity(|cx| {
-      ListState::new(
-        TitlesListAdapter {
-          sections: vec![
-            Section {
-              category: Category::Series,
-              titles: vec![
-                Title::new("breaking bad", "vince gilligan", 9.6),
-                Title::new("andor", "tony gilroy", 9.6),
-                Title::new("severance", "dan erickson", 9.6),
-                Title::new("the wire", "david simon", 9.6),
-              ],
-            },
-            Section {
-              category: Category::Film,
-              titles: vec![
-                Title::new("spirited away", "hayao miyazaki", 9.6),
-                Title::new("parasite", "bong joon-ho", 9.6),
-                Title::new("dune: part two", "denis villeneuve", 9.6),
-                Title::new("blade runner 2049", "denis villeneuve", 9.6),
-              ],
-            },
-            Section {
-              category: Category::Manga,
-              titles: vec![
-                Title::new("one piece", "eiichiro oda", 10.),
-                Title::new("berserk", "kentaro miura", 9.6),
-                Title::new("vagabond", "Takehiko Inoue", 9.6),
-                Title::new("monster", "naoki urasawa", 9.6),
-                Title::new("vinland saga", "makoto yukimura", 9.6),
-              ],
-            },
-          ],
-        },
-        window,
-        cx,
-      )
+      ListState::new(TitlesListAdapter::sample(), window, cx).selectable(true)
     });
-    Self { list_state }
+
+    cx.on_event(&list_state, move |_, event: &ListEvent, cx| {
+      let status: Arc<str> = match event {
+        ListEvent::Select(idx) => {
+          format!("selected: section {}, row {}", idx.section, idx.row).into()
+        }
+        ListEvent::Submit(idx) => {
+          format!("submitted: section {}, row {}", idx.section, idx.row).into()
+        }
+        ListEvent::Clear => "selection cleared".into(),
+      };
+
+      this.update(cx, |this, cx| {
+        this.status = status;
+        cx.notify();
+      });
+      true
+    });
+
+    Self {
+      list_state,
+      status: "".into(),
+    }
   }
 }
 impl Render for ListExample {
@@ -75,14 +67,28 @@ impl Render for ListExample {
     _: &mut Window,
     _: &mut Context<Self>,
   ) -> impl IntoElement {
-    div().size_full().flex().flex_col().child(
-      div()
-        .flex_grow(1.)
-        .min_h(0.)
-        .w_full()
-        .border()
-        .child(List::new(&self.list_state)),
-    )
+    div()
+      .size_full()
+      .flex()
+      .flex_col()
+      .child(
+        "up/down: move | return: submit | esc: clear | ctrl-; ctrl-q: quit",
+      )
+      .child(
+        div()
+          .flex_grow(1.)
+          .min_h(0.)
+          .w_full()
+          .border()
+          .child(List::new(&self.list_state).separator(true)),
+      )
+      .child(
+        div()
+          .w_full()
+          .px(1.)
+          .bg(rgb(0x161922))
+          .child(self.status.clone()),
+      )
   }
 }
 
@@ -128,32 +134,39 @@ struct TitleListItem {
   title: Rc<Title>,
 }
 impl TitleListItem {
-  fn new(title: Rc<Title>) -> Self {
+  fn new(title: Rc<Title>, selected: bool, confirmed: bool) -> Self {
     Self {
-      base: ListItem::new(),
+      base: ListItem::new().selected(selected).confirmed(confirmed),
       title,
     }
   }
 }
 impl RenderOnce for TitleListItem {
   fn render(self, _: &mut Window, _: &mut App) -> impl IntoElement {
-    self.base.w_full().overflow_x_hidden().child(
-      div()
-        .w_full()
-        .flex()
-        .flex_row()
-        .justify_between()
-        .px(1.)
-        .child(
-          div()
-            .flex()
-            .flex_row()
-            .gap_x(2.)
-            .child(self.title.name.clone())
-            .child(format!("by {}", self.title.author)),
-        )
-        .child(format!("* {:.1}", self.title.rating)),
-    )
+    let selected = self.base.is_selected();
+    let confirmed = self.base.is_confirmed();
+    let prefix = if selected { "> " } else { "  " };
+    let badge = if confirmed { " [confirmed]" } else { "" };
+
+    self
+      .base
+      .w_full()
+      .overflow_x_hidden()
+      .when(confirmed && !selected, |this| this.bg(rgb(0x1f3a2e)))
+      .when(selected, |this| this.bg(rgb(0x3b4261)))
+      .child(
+        div()
+          .w_full()
+          .flex()
+          .flex_row()
+          .justify_between()
+          .px(1.)
+          .child(format!(
+            "{}{} by {}{}",
+            prefix, self.title.name, self.title.author, badge,
+          ))
+          .child(format!("* {:.1}", self.title.rating)),
+      )
   }
 }
 impl IntoElement for TitleListItem {
@@ -166,6 +179,48 @@ impl IntoElement for TitleListItem {
 
 struct TitlesListAdapter {
   sections: Vec<Section>,
+  selected_idx: Option<IndexPath>,
+  confirmed_idx: Option<IndexPath>,
+  loading: bool,
+}
+impl TitlesListAdapter {
+  fn sample() -> Self {
+    Self {
+      sections: vec![
+        Section {
+          category: Category::Series,
+          titles: vec![
+            Title::new("breaking bad", "vince gilligan", 9.5),
+            Title::new("andor", "tony gilroy", 8.6),
+            Title::new("severance", "dan erickson", 8.7),
+            Title::new("the wire", "david simon", 9.3),
+          ],
+        },
+        Section {
+          category: Category::Film,
+          titles: vec![
+            Title::new("spirited away", "hayao miyazaki", 8.6),
+            Title::new("parasite", "bong joon-ho", 8.5),
+            Title::new("dune: part two", "denis villeneuve", 8.5),
+            Title::new("blade runner 2049", "denis villeneuve", 8.0),
+          ],
+        },
+        Section {
+          category: Category::Manga,
+          titles: vec![
+            Title::new("one piece", "eiichiro oda", 10.0),
+            Title::new("berserk", "kentaro miura", 9.5),
+            Title::new("vagabond", "takehiko inoue", 9.2),
+            Title::new("monster", "naoki urasawa", 9.1),
+            Title::new("vinland saga", "makoto yukimura", 9.0),
+          ],
+        },
+      ],
+      selected_idx: None,
+      confirmed_idx: None,
+      loading: false,
+    }
+  }
 }
 impl ListAdapter for TitlesListAdapter {
   type Item = TitleListItem;
@@ -181,6 +236,48 @@ impl ListAdapter for TitlesListAdapter {
       .map_or(0, |section| section.titles.len())
   }
 
+  fn set_selected_idx(
+    &mut self,
+    idx_path: Option<IndexPath>,
+    cx: &mut Context<ListState<Self>>,
+  ) {
+    self.selected_idx = idx_path;
+    cx.notify();
+  }
+
+  fn confirm(&mut self, _: &mut Window, cx: &mut Context<ListState<Self>>) {
+    self.confirmed_idx = self.selected_idx;
+    cx.notify();
+  }
+
+  fn cancel(&mut self, _: &mut Window, cx: &mut Context<ListState<Self>>) {
+    self.selected_idx = None;
+    self.confirmed_idx = None;
+    cx.notify();
+  }
+
+  fn loading(&self, _: &App) -> bool {
+    self.loading
+  }
+
+  fn render_loading(
+    &mut self,
+    _: &mut Window,
+    _: &mut Context<ListState<Self>>,
+  ) -> Option<impl IntoElement>
+  where
+    Self: Sized,
+  {
+    Some(
+      div()
+        .size_full()
+        .flex()
+        .items_center()
+        .justify_center()
+        .child("loading titles..."),
+    )
+  }
+
   fn render_item(
     &mut self,
     idx_path: IndexPath,
@@ -190,13 +287,19 @@ impl ListAdapter for TitlesListAdapter {
   where
     Self: Sized,
   {
+    let selected = self
+      .selected_idx
+      .is_some_and(|current| current.eq_row(idx_path));
+    let confirmed = self
+      .confirmed_idx
+      .is_some_and(|current| current.eq_row(idx_path));
     let title = self
       .sections
       .get(idx_path.section)?
       .titles
       .get(idx_path.row)?;
 
-    Some(TitleListItem::new(title.clone()))
+    Some(TitleListItem::new(title.clone(), selected, confirmed))
   }
 
   fn render_header(
@@ -214,7 +317,7 @@ impl ListAdapter for TitlesListAdapter {
       div()
         .w_full()
         .px(1.)
-        .bg(rgb(0xff0000))
+        .bg(rgb(0x2b3040))
         .child(format!("{:?}", section.category)),
     )
   }
@@ -229,13 +332,12 @@ impl ListAdapter for TitlesListAdapter {
     Self: Sized,
   {
     let section = self.sections.get(section_idx)?;
-    let summary = format!(
-      "total {} | avg {:.1}",
-      section.titles.len(),
-      section.avg_rating(),
-    );
 
-    Some(div().w_full().px(1.).bg(rgb(0x0000ff)).child(summary))
+    Some(div().w_full().px(1.).bg(rgb(0x1f2330)).child(format!(
+      "{} | avg {:.1}",
+      section.titles.len(),
+      section.avg_rating()
+    )))
   }
 
   fn render_empty(

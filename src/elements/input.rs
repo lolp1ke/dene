@@ -44,7 +44,7 @@ mod actions {
     ]
   }
 }
-use self::actions::*;
+use actions::*;
 
 const SAFE_MARGIN: usize = 3;
 
